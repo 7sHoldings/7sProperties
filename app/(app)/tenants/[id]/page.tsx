@@ -65,7 +65,7 @@ export default async function TenantDetailPage({
             table="tenants"
             id={tenant.id}
             redirectTo="/tenants"
-            confirmMessage="Delete this tenant? Their leases and payment history will also be removed."
+            confirmMessage="This tenant, all their leases, and all payment history will be deleted. Any units they occupy will be set back to vacant."
           />
         </div>
       </div>

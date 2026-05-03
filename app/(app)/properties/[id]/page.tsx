@@ -85,7 +85,7 @@ export default async function PropertyDetailPage({
             table="properties"
             id={property.id}
             redirectTo="/properties"
-            confirmMessage="Delete this property and all related units, leases, payments, expenses, and maintenance? This cannot be undone."
+            confirmMessage={`Deleting will permanently remove this property along with ${property.units?.length || 0} unit(s), ${leases.length} lease(s), ${payments.length}+ payment(s), ${expenses.length}+ expense(s), and ${maintenance.length}+ maintenance request(s).${leases.some((l: any) => l.status === "active") ? " ⚠️ This property has ACTIVE leases." : ""}`}
           />
         </div>
       </div>

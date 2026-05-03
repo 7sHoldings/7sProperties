@@ -93,10 +93,18 @@ export const tenantSchema = z.object({
 export type TenantValues = z.input<typeof tenantSchema>;
 export type TenantInput = z.output<typeof tenantSchema>;
 
+const today = () => new Date().toISOString().slice(0, 10);
+
 export const paymentSchema = z.object({
   lease_id: z.string().min(1, "Select a lease"),
-  payment_date: z.string().min(1, "Date is required"),
-  for_month: z.string().min(1, "Month is required"),
+  payment_date: z
+    .string()
+    .min(1, "Date is required")
+    .refine((d) => d <= today(), "Date cannot be in the future"),
+  for_month: z
+    .string()
+    .min(1, "Month is required")
+    .refine((d) => /^\d{4}-\d{2}-01$/.test(d), "Use the 1st of the month"),
   amount: z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
     z.number({ message: "Amount required" }).positive("Amount must be greater than 0")
@@ -110,7 +118,10 @@ export type PaymentInput = z.output<typeof paymentSchema>;
 
 export const expenseSchema = z.object({
   property_id: z.string().min(1, "Select a property"),
-  expense_date: z.string().min(1, "Date is required"),
+  expense_date: z
+    .string()
+    .min(1, "Date is required")
+    .refine((d) => d <= today(), "Date cannot be in the future"),
   amount: z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
     z.number({ message: "Amount required" }).positive("Amount must be greater than 0")
@@ -129,7 +140,10 @@ export const maintenanceSchema = z.object({
   description: optionalStr,
   priority: z.enum(["low", "medium", "high", "urgent"]),
   status: z.enum(["open", "in_progress", "completed", "cancelled"]),
-  reported_date: z.string().min(1, "Date required"),
+  reported_date: z
+    .string()
+    .min(1, "Date required")
+    .refine((d) => d <= today(), "Date cannot be in the future"),
   completed_date: optionalStr,
   contractor: optionalStr,
   cost: z.preprocess(

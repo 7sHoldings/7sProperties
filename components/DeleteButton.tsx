@@ -16,6 +16,43 @@ type Props = {
   variant?: "button" | "icon";
 };
 
+/**
+ * Run cleanup BEFORE the row is deleted (DB cascades will fire on delete,
+ * but app-level side effects like resetting unit status need to happen here).
+ */
+async function preDeleteCleanup(supabase: ReturnType<typeof createClient>, table: string, id: string) {
+  if (table === "tenants") {
+    // Find this tenant's active leases → mark their units vacant
+    const { data: leases } = await supabase
+      .from("leases")
+      .select("unit_id")
+      .eq("tenant_id", id)
+      .eq("status", "active");
+    const unitIds = Array.from(new Set((leases || []).map((l: any) => l.unit_id).filter(Boolean)));
+    if (unitIds.length) {
+      await supabase.from("units").update({ status: "vacant" }).in("id", unitIds);
+    }
+  } else if (table === "leases") {
+    // Get unit, mark vacant only if no OTHER active leases on that unit
+    const { data: lease } = await supabase
+      .from("leases")
+      .select("unit_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (lease?.unit_id) {
+      const { count } = await supabase
+        .from("leases")
+        .select("id", { count: "exact", head: true })
+        .eq("unit_id", lease.unit_id)
+        .eq("status", "active")
+        .neq("id", id);
+      if ((count || 0) === 0) {
+        await supabase.from("units").update({ status: "vacant" }).eq("id", lease.unit_id);
+      }
+    }
+  }
+}
+
 export default function DeleteButton({
   table,
   id,
@@ -29,6 +66,8 @@ export default function DeleteButton({
   const [open, setOpen] = useState(false);
 
   async function performDelete() {
+    await preDeleteCleanup(supabase, table, id);
+
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) {
       toast.error(error.message);
