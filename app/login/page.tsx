@@ -1,18 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Building2 } from "lucide-react";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const supabase = createClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(
+    params.get("error") === "auth" ? "Authentication link was invalid or expired." : ""
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,7 +32,11 @@ export default function LoginPage() {
     setMessage("");
 
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
       if (error) setMessage(error.message);
       else setMessage("Check your email to confirm your account.");
     } else {
@@ -78,6 +94,12 @@ export default function LoginPage() {
         >
           {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
         </button>
+
+        {!isSignUp && (
+          <Link href="/login/reset" className="mt-2 text-xs text-stone-500 hover:underline w-full text-center block">
+            Forgot password?
+          </Link>
+        )}
       </div>
     </div>
   );

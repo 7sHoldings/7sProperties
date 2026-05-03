@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { format } from "date-fns";
+import DeleteButton from "@/components/DeleteButton";
 
 export default async function ExpensesPage() {
   const supabase = await createClient();
@@ -38,6 +39,7 @@ export default async function ExpensesPage() {
                 <th className="text-left px-4 py-2 font-medium">Description</th>
                 <th className="text-left px-4 py-2 font-medium">Category</th>
                 <th className="text-right px-4 py-2 font-medium">Amount</th>
+                <th className="text-right px-4 py-2 font-medium w-24"></th>
               </tr>
             </thead>
             <tbody>
@@ -48,6 +50,12 @@ export default async function ExpensesPage() {
                   <td className="px-4 py-3">{e.description}</td>
                   <td className="px-4 py-3 text-stone-600 capitalize">{e.category.replace("_", " ")}</td>
                   <td className="px-4 py-3 text-right text-red-700 font-medium">−${Number(e.amount).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <Link href={`/expenses/${e.id}/edit`} className="text-xs text-teal-700 hover:underline">Edit</Link>
+                      <DeleteButton table="expenses" id={e.id} variant="icon" />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

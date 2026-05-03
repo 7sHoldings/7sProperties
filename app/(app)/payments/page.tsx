@@ -1,18 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { startOfMonth, format } from "date-fns";
+import DeleteButton from "@/components/DeleteButton";
 
 export default async function PaymentsPage() {
   const supabase = await createClient();
   const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
 
-  const [leasesRes, paymentsRes] = await Promise.all([
+  const [leasesRes, monthPaymentsRes, recentPaymentsRes] = await Promise.all([
     supabase.from("leases").select("*, tenants(full_name), units(unit_label, properties(name))").eq("status", "active"),
     supabase.from("payments").select("lease_id, amount").eq("for_month", monthStart),
+    supabase
+      .from("payments")
+      .select("id, amount, payment_date, for_month, payment_method, leases(tenants(full_name), units(unit_label, properties(name)))")
+      .order("payment_date", { ascending: false })
+      .limit(20),
   ]);
 
   const leases = leasesRes.data || [];
-  const paymentsByLease = (paymentsRes.data || []).reduce((acc: any, p: any) => {
+  const recentPayments = (recentPaymentsRes.data || []) as any[];
+  const paymentsByLease = (monthPaymentsRes.data || []).reduce((acc: any, p: any) => {
     acc[p.lease_id] = (acc[p.lease_id] || 0) + Number(p.amount);
     return acc;
   }, {});
@@ -38,7 +45,7 @@ export default async function PaymentsPage() {
         <KpiCard label="Outstanding" value={`$${Math.max(0, expected - collected).toLocaleString()}`} tone="warning" />
       </div>
 
-      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden mb-6">
         <table className="w-full text-sm">
           <thead className="bg-stone-50">
             <tr>
@@ -77,6 +84,45 @@ export default async function PaymentsPage() {
             })}
           </tbody>
         </table>
+      </div>
+
+      <h2 className="text-lg font-medium mb-3">Recent payments</h2>
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+        {recentPayments.length === 0 ? (
+          <p className="p-6 text-sm text-stone-500 text-center">No payments recorded yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium">Date</th>
+                <th className="text-left px-4 py-2 font-medium">Tenant</th>
+                <th className="text-left px-4 py-2 font-medium">Property</th>
+                <th className="text-left px-4 py-2 font-medium">For</th>
+                <th className="text-left px-4 py-2 font-medium">Method</th>
+                <th className="text-right px-4 py-2 font-medium">Amount</th>
+                <th className="text-right px-4 py-2 font-medium w-24"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentPayments.map((p: any) => (
+                <tr key={p.id} className="border-t border-stone-100">
+                  <td className="px-4 py-3 text-stone-600">{format(new Date(p.payment_date), "MMM d, yyyy")}</td>
+                  <td className="px-4 py-3">{p.leases?.tenants?.full_name || "—"}</td>
+                  <td className="px-4 py-3">{p.leases?.units?.properties?.name || "—"}</td>
+                  <td className="px-4 py-3 text-stone-600">{format(new Date(p.for_month), "MMM yyyy")}</td>
+                  <td className="px-4 py-3 text-stone-600 capitalize">{(p.payment_method || "—").replace("_", " ")}</td>
+                  <td className="px-4 py-3 text-right text-green-700 font-medium">${Number(p.amount).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <Link href={`/payments/${p.id}/edit`} className="text-xs text-teal-700 hover:underline">Edit</Link>
+                      <DeleteButton table="payments" id={p.id} variant="icon" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

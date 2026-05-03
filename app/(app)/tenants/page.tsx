@@ -38,8 +38,10 @@ export default async function TenantsPage() {
               {tenants.map((t: any) => {
                 const activeLease = t.leases?.find((l: any) => l.status === "active");
                 return (
-                  <tr key={t.id} className="border-t border-stone-100">
-                    <td className="px-4 py-3 font-medium">{t.full_name}</td>
+                  <tr key={t.id} className="border-t border-stone-100 hover:bg-stone-50">
+                    <td className="px-4 py-3 font-medium">
+                      <Link href={`/tenants/${t.id}`} className="hover:underline">{t.full_name}</Link>
+                    </td>
                     <td className="px-4 py-3 text-stone-600">{t.email || "—"}</td>
                     <td className="px-4 py-3 text-stone-600">{t.phone || "—"}</td>
                     <td className="px-4 py-3">{activeLease?.units?.properties?.name || "—"}</td>

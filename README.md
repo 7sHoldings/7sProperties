@@ -21,7 +21,9 @@ A clean rental property management app for tracking properties, tenants, leases,
 2. Open **SQL Editor** → New query
 3. Paste the entire contents of `supabase/schema.sql` and click **Run**
 4. Go to **Storage** → New bucket → name it `documents`, set as **Private**
-5. Go to **Project Settings → API** and copy:
+5. Open **SQL Editor** → New query → paste `supabase/storage-policies.sql` and **Run** (enables per-user file isolation)
+6. **Auth → URL Configuration** — set the Site URL to your deployed domain (or `http://localhost:3000` for local) and add `<your-domain>/auth/callback` to redirect URLs
+7. Go to **Project Settings → API** and copy:
    - Project URL
    - `anon` public key
 
@@ -71,14 +73,16 @@ middleware.ts               # Auth gate
 supabase/schema.sql         # Database schema (run once)
 ```
 
-## Phase 2 (next 2 weeks of work)
+## Phase 2 (in progress — most items now shipped)
 
-- Property detail page with lease history & timeline
-- Tenant detail page
-- Document upload (Supabase Storage — bucket already created)
-- Edit/delete on all entities
-- Receipt photo upload from mobile
-- Lease expiration alerts (90/60/30 day banners on dashboard)
+- ✅ Property detail page with lease history, payments, expenses, maintenance
+- ✅ Tenant detail page with lease & payment history
+- ✅ Document upload (Supabase Storage with per-user isolation)
+- ✅ Edit/delete on properties, tenants, payments, expenses, maintenance
+- ✅ Lease expiration alerts (90/60/30 day banner on dashboard)
+- ✅ Password reset + email confirmation callback
+- ⏳ Receipt photo upload from mobile (use upload UI on expense detail)
+- ⏳ Multi-unit add UI (schema already supports it)
 
 ## Phase 3 (mobile + automation)
 
