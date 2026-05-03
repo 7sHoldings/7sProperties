@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { startOfMonth, endOfMonth, format } from "date-fns";
+import LeaseAlerts from "@/components/LeaseAlerts";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -44,6 +45,8 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      <LeaseAlerts />
 
       <div className="grid grid-cols-4 gap-3 mb-6">
         <KpiCard label="Total properties" value={properties.length.toString()} sub={`${occupiedUnits}/${totalUnits} units occupied`} />
