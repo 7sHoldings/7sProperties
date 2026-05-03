@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { format, startOfMonth } from "date-fns";
 
 export default function NewPaymentPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <NewPaymentForm />
+    </Suspense>
+  );
+}
+
+function NewPaymentForm() {
   const router = useRouter();
   const params = useSearchParams();
   const supabase = createClient();
