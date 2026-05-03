@@ -3,8 +3,13 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { Building2 } from "lucide-react";
+import { loginSchema, type LoginInput } from "@/lib/schemas";
+import { Input } from "@/components/ui/FormField";
+import Button from "@/components/ui/Button";
 
 export default function LoginPage() {
   return (
@@ -18,75 +23,86 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const supabase = createClient();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(
+  const [info, setInfo] = useState(
     params.get("error") === "auth" ? "Authentication link was invalid or expired." : ""
   );
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setMessage("");
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
 
+  async function onSubmit(values: LoginInput) {
+    setInfo("");
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({
-        email,
-        password,
+        email: values.email,
+        password: values.password,
         options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
       });
-      if (error) setMessage(error.message);
-      else setMessage("Check your email to confirm your account.");
+      if (error) {
+        toast.error(error.message);
+      } else {
+        setInfo("Check your email to confirm your account.");
+        toast.success("Confirmation email sent");
+      }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setMessage(error.message);
-      else router.push("/");
+      const { error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
+      if (error) toast.error(error.message);
+      else {
+        toast.success("Welcome back");
+        router.push("/");
+      }
     }
-    setLoading(false);
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-xl border border-stone-200 p-8">
-        <div className="flex items-center gap-2 mb-6">
-          <Building2 className="w-6 h-6 text-teal-700" />
-          <h1 className="text-xl font-medium">Rental Manager</h1>
+    <div className="min-h-screen flex items-center justify-center px-4 bg-stone-50">
+      <div className="w-full max-w-sm bg-white rounded-xl border border-stone-200 p-7 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-9 h-9 rounded-md bg-teal-700 text-white flex items-center justify-center font-bold tracking-tight">
+            7s
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-stone-900 leading-tight">7s Rental</h1>
+            <p className="text-xs text-stone-500">Property manager</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-stone-600 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-stone-600 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-teal-700 text-white py-2 rounded-md hover:bg-teal-800 disabled:opacity-50"
-          >
-            {loading ? "Loading..." : isSignUp ? "Sign up" : "Sign in"}
-          </button>
+        <h2 className="text-base font-medium mb-4">{isSignUp ? "Create your account" : "Sign in"}</h2>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+          <Input
+            label="Email"
+            type="email"
+            autoComplete="email"
+            required
+            error={errors.email?.message}
+            {...register("email")}
+          />
+          <Input
+            label="Password"
+            type="password"
+            autoComplete={isSignUp ? "new-password" : "current-password"}
+            required
+            error={errors.password?.message}
+            hint={isSignUp ? "At least 6 characters" : undefined}
+            {...register("password")}
+          />
+          <Button type="submit" loading={isSubmitting} fullWidth size="lg">
+            {isSignUp ? "Sign up" : "Sign in"}
+          </Button>
         </form>
 
-        {message && <p className="mt-4 text-sm text-stone-600">{message}</p>}
+        {info && <p className="mt-4 text-sm text-stone-600">{info}</p>}
 
         <button
           onClick={() => setIsSignUp(!isSignUp)}
@@ -96,7 +112,10 @@ function LoginForm() {
         </button>
 
         {!isSignUp && (
-          <Link href="/login/reset" className="mt-2 text-xs text-stone-500 hover:underline w-full text-center block">
+          <Link
+            href="/login/reset"
+            className="mt-2 text-xs text-stone-500 hover:underline w-full text-center block"
+          >
             Forgot password?
           </Link>
         )}

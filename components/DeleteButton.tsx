@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 type Props = {
   table: string;
@@ -19,53 +21,55 @@ export default function DeleteButton({
   id,
   redirectTo,
   label = "Delete",
-  confirmMessage = "Are you sure? This cannot be undone.",
+  confirmMessage = "This action cannot be undone.",
   variant = "button",
 }: Props) {
   const router = useRouter();
   const supabase = createClient();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [open, setOpen] = useState(false);
 
-  async function handleDelete() {
-    if (!confirm(confirmMessage)) return;
-    setLoading(true);
-    setError("");
+  async function performDelete() {
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) {
-      setError(error.message);
-      setLoading(false);
+      toast.error(error.message);
       return;
     }
+    toast.success("Deleted");
+    setOpen(false);
     if (redirectTo) router.push(redirectTo);
     router.refresh();
   }
 
-  if (variant === "icon") {
-    return (
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={loading}
-        title={label}
-        className="text-stone-400 hover:text-red-600 disabled:opacity-50"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-    );
-  }
-
   return (
-    <div className="inline-flex flex-col items-end">
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={loading}
-        className="px-3 py-1.5 text-sm border border-red-200 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-50"
-      >
-        {loading ? "Deleting..." : label}
-      </button>
-      {error && <p className="text-xs text-red-700 mt-1">{error}</p>}
-    </div>
+    <>
+      {variant === "icon" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title={label}
+          className="text-stone-400 hover:text-red-600"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="px-3 py-1.5 text-sm border border-red-200 text-red-700 rounded-md hover:bg-red-50"
+        >
+          {label}
+        </button>
+      )}
+
+      <ConfirmDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        onConfirm={performDelete}
+        title={`Delete ${label.toLowerCase() === "delete" ? "this item" : label.toLowerCase()}?`}
+        message={confirmMessage}
+        confirmLabel="Delete"
+        variant="danger"
+      />
+    </>
   );
 }

@@ -57,15 +57,15 @@ export default async function PropertyDetailPage({
     .reduce((s: number, l: any) => s + Number(l.monthly_rent), 0);
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-2 text-sm text-stone-500 mb-4">
         <Link href="/properties" className="hover:underline">Properties</Link>
         <span>›</span>
-        <span className="text-stone-900">{property.name}</span>
+        <span className="text-stone-900 truncate">{property.name}</span>
       </div>
 
-      <div className="flex items-start justify-between mb-6">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="min-w-0">
           <h1 className="text-2xl font-medium">{property.name}</h1>
           <p className="text-sm text-stone-500 mt-1">
             {property.address}
@@ -90,14 +90,14 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Stat label="Type" value={(property.property_type || "—").replace("_", " ")} />
         <Stat label="Bedrooms" value={property.bedrooms ?? "—"} />
         <Stat label="Bathrooms" value={property.bathrooms ?? "—"} />
         <Stat label="Active rent" value={totalRent ? `$${totalRent.toLocaleString()}/mo` : "—"} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <div className="bg-white border border-stone-200 rounded-xl p-4">
           <h2 className="font-medium mb-3">Units</h2>
           {property.units?.length === 0 ? (
@@ -138,7 +138,7 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <div className="bg-white border border-stone-200 rounded-xl p-4">
           <h2 className="font-medium mb-3">Recent payments</h2>
           {payments.length === 0 ? (
@@ -175,7 +175,7 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="bg-white border border-stone-200 rounded-xl p-4">
           <h2 className="font-medium mb-3">Maintenance</h2>
           {maintenance.length === 0 ? (

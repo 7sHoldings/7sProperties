@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { FileText, Upload, Trash2, Download } from "lucide-react";
 import { format } from "date-fns";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 type DocRow = {
   id: string;
@@ -23,14 +25,16 @@ type Props = {
   expenseId?: string;
 };
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
 export default function DocumentUpload(props: Props) {
   const supabase = createClient();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
   const [docType, setDocType] = useState("other");
+  const [pendingDelete, setPendingDelete] = useState<DocRow | null>(null);
 
   const filterColumn = props.propertyId
     ? "property_id"
@@ -58,23 +62,27 @@ export default function DocumentUpload(props: Props) {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File too large (max 10 MB)");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     setUploading(true);
-    setError("");
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
-      setError("Not authenticated");
+      toast.error("Not authenticated");
       setUploading(false);
       return;
     }
 
     const path = `${user.id}/${filterColumn}/${filterValue}/${Date.now()}-${file.name}`;
-    const { error: uploadErr } = await supabase.storage
-      .from("documents")
-      .upload(path, file);
+    const { error: uploadErr } = await supabase.storage.from("documents").upload(path, file);
 
     if (uploadErr) {
-      setError(uploadErr.message);
+      toast.error(uploadErr.message);
       setUploading(false);
       return;
     }
@@ -90,7 +98,9 @@ export default function DocumentUpload(props: Props) {
     });
 
     if (insertErr) {
-      setError(insertErr.message);
+      toast.error(insertErr.message);
+    } else {
+      toast.success("File uploaded");
     }
 
     if (inputRef.current) inputRef.current.value = "";
@@ -104,16 +114,19 @@ export default function DocumentUpload(props: Props) {
       .from("documents")
       .createSignedUrl(doc.file_path, 60);
     if (error || !data) {
-      alert(error?.message || "Failed to get download link");
+      toast.error(error?.message || "Failed to get download link");
       return;
     }
     window.open(data.signedUrl, "_blank");
   }
 
-  async function handleDelete(doc: DocRow) {
-    if (!confirm(`Delete "${doc.file_name}"?`)) return;
-    await supabase.storage.from("documents").remove([doc.file_path]);
-    await supabase.from("documents").delete().eq("id", doc.id);
+  async function performDelete() {
+    if (!pendingDelete) return;
+    await supabase.storage.from("documents").remove([pendingDelete.file_path]);
+    const { error } = await supabase.from("documents").delete().eq("id", pendingDelete.id);
+    if (error) toast.error(error.message);
+    else toast.success("File deleted");
+    setPendingDelete(null);
     loadDocs();
     router.refresh();
   }
@@ -129,7 +142,7 @@ export default function DocumentUpload(props: Props) {
     <div className="bg-white border border-stone-200 rounded-xl p-4">
       <h2 className="font-medium mb-3">Documents</h2>
 
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <select
           value={docType}
           onChange={(e) => setDocType(e.target.value)}
@@ -154,9 +167,8 @@ export default function DocumentUpload(props: Props) {
             className="hidden"
           />
         </label>
+        <span className="text-xs text-stone-500">Max 10 MB</span>
       </div>
-
-      {error && <p className="text-sm text-red-700 mb-2">{error}</p>}
 
       {docs.length === 0 ? (
         <p className="text-sm text-stone-500 py-4">No documents yet.</p>
@@ -168,7 +180,9 @@ export default function DocumentUpload(props: Props) {
               <div className="flex-1 min-w-0">
                 <div className="truncate">{d.file_name}</div>
                 <div className="text-xs text-stone-500">
-                  {d.document_type && <span className="capitalize">{d.document_type.replace("_", " ")}</span>}
+                  {d.document_type && (
+                    <span className="capitalize">{d.document_type.replace("_", " ")}</span>
+                  )}
                   {d.file_size ? ` · ${formatSize(d.file_size)}` : ""}
                   {` · ${format(new Date(d.created_at), "MMM d, yyyy")}`}
                 </div>
@@ -183,7 +197,7 @@ export default function DocumentUpload(props: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => handleDelete(d)}
+                onClick={() => setPendingDelete(d)}
                 className="text-stone-400 hover:text-red-600"
                 title="Delete"
               >
@@ -193,6 +207,16 @@ export default function DocumentUpload(props: Props) {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={performDelete}
+        title="Delete file?"
+        message={pendingDelete ? `"${pendingDelete.file_name}" will be permanently removed.` : ""}
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

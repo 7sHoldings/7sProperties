@@ -1,10 +1,14 @@
-import Sidebar from "@/components/Sidebar";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import AppShell from "@/components/AppShell";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex">
-      <Sidebar />
-      <main className="flex-1 min-h-screen">{children}</main>
-    </div>
-  );
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  return <AppShell userEmail={user.email || ""}>{children}</AppShell>;
 }

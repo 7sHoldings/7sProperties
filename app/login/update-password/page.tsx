@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { Building2 } from "lucide-react";
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
@@ -11,67 +11,96 @@ export default function UpdatePasswordPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({});
+
+  function validate() {
+    const e: typeof errors = {};
+    if (password.length < 6) e.password = "At least 6 characters";
+    if (confirm !== password) e.confirm = "Passwords do not match";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (password !== confirm) {
-      setError("Passwords do not match");
-      return;
-    }
+    if (!validate()) return;
     setLoading(true);
-    setError("");
     const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
+    setLoading(false);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Password updated");
+      router.push("/");
     }
-    router.push("/");
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-xl border border-stone-200 p-8">
-        <div className="flex items-center gap-2 mb-6">
-          <Building2 className="w-6 h-6 text-teal-700" />
-          <h1 className="text-xl font-medium">Set new password</h1>
+    <div className="min-h-screen flex items-center justify-center px-4 bg-stone-50">
+      <div className="w-full max-w-sm bg-white rounded-xl border border-stone-200 p-7 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-9 h-9 rounded-md bg-teal-700 text-white flex items-center justify-center font-bold tracking-tight">
+            7s
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-stone-900 leading-tight">7s Rental</h1>
+            <p className="text-xs text-stone-500">Set new password</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-stone-600 mb-1">New password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-stone-600 mb-1">Confirm password</label>
-            <input
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              required
-              minLength={6}
-              className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600"
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+          <PasswordField
+            label="New password"
+            value={password}
+            onChange={setPassword}
+            error={errors.password}
+          />
+          <PasswordField
+            label="Confirm password"
+            value={confirm}
+            onChange={setConfirm}
+            error={errors.confirm}
+          />
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-teal-700 text-white py-2 rounded-md hover:bg-teal-800 disabled:opacity-50"
+            className="w-full bg-teal-700 text-white py-2 rounded-md hover:bg-teal-800 disabled:opacity-50 text-sm font-medium"
           >
             {loading ? "Updating..." : "Update password"}
           </button>
         </form>
-
-        {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
       </div>
+    </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  onChange,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm text-stone-700 mb-1 font-medium">
+        {label}
+        <span className="text-red-600 ml-0.5">*</span>
+      </label>
+      <input
+        type="password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+        minLength={6}
+        className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${
+          error ? "border-red-300 focus:ring-red-300" : "border-stone-200 focus:ring-teal-600"
+        }`}
+      />
+      {error && <p className="text-xs text-red-700 mt-1">{error}</p>}
     </div>
   );
 }

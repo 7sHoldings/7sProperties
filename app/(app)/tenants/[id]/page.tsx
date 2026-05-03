@@ -40,7 +40,7 @@ export default async function TenantDetailPage({
   const totalPaid = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-2 text-sm text-stone-500 mb-4">
         <Link href="/tenants" className="hover:underline">Tenants</Link>
         <span>›</span>
@@ -76,7 +76,7 @@ export default async function TenantDetailPage({
         <Stat label="Lifetime paid" value={`$${totalPaid.toLocaleString()}`} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <div className="bg-white border border-stone-200 rounded-xl p-4">
           <h2 className="font-medium mb-3">Lease history</h2>
           {leases.length === 0 ? (
@@ -121,7 +121,7 @@ export default async function TenantDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="bg-white border border-stone-200 rounded-xl p-4">
           <h2 className="font-medium mb-3">Emergency contact</h2>
           <p className="text-sm">
