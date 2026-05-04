@@ -70,18 +70,6 @@ export default function MileageList({ logs, properties }: Props) {
   const totalMiles = filtered.reduce((s, l) => s + Number(l.miles), 0);
   const deduction = totalMiles * RATE_PER_MILE;
 
-  if (logs.length === 0) {
-    return (
-      <EmptyState
-        icon={<Car className="w-6 h-6" />}
-        title="No mileage logged yet"
-        description="Log every trip you take for property business — at $0.67/mile (2026 IRS rate), it adds up fast."
-        actionLabel="+ Log a trip"
-        actionHref="/mileage/new"
-      />
-    );
-  }
-
   const propOptions = [
     { value: "all", label: "All" },
     { value: "none", label: "General" },
@@ -103,6 +91,16 @@ export default function MileageList({ logs, properties }: Props) {
         resultCount={filtered.length}
         totalCount={logs.length}
       />
+
+      {logs.length === 0 && (
+        <EmptyState
+          icon={<Car className="w-6 h-6" />}
+          title="No mileage logged yet"
+          description="Log every trip you take for property business — at $0.67/mile (2026 IRS rate), it adds up fast."
+          actionLabel="+ Log a trip"
+          actionHref="/mileage/new"
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div className="bg-white border border-stone-200 rounded-xl p-4">

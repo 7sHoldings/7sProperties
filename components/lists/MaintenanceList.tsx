@@ -90,18 +90,6 @@ export default function MaintenanceList({ requests, properties }: Props) {
     return list;
   }, [requests, search, propertyId, status, priority, sort]);
 
-  if (requests.length === 0) {
-    return (
-      <EmptyState
-        icon={<Wrench className="w-6 h-6" />}
-        title="No maintenance requests"
-        description="Log issues, assign contractors, and track repair costs per property."
-        actionLabel="+ New request"
-        actionHref="/maintenance/new"
-      />
-    );
-  }
-
   const propOptions = [
     { value: "all", label: "All properties" },
     ...properties.map((p) => ({ value: p.id, label: p.name })),
@@ -123,7 +111,15 @@ export default function MaintenanceList({ requests, properties }: Props) {
         totalCount={requests.length}
       />
 
-      {filtered.length === 0 ? (
+      {requests.length === 0 ? (
+        <EmptyState
+          icon={<Wrench className="w-6 h-6" />}
+          title="No maintenance requests"
+          description="Log issues, assign contractors, and track repair costs per property."
+          actionLabel="+ New request"
+          actionHref="/maintenance/new"
+        />
+      ) : filtered.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
           No maintenance requests match your filters.
         </div>

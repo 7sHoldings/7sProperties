@@ -10,11 +10,15 @@ import EmptyState from "@/components/ui/EmptyState";
 type Property = any;
 
 const SORTS = [
-  { value: "newest", label: "Newest" },
-  { value: "oldest", label: "Oldest" },
-  { value: "name", label: "Name (A-Z)" },
+  { value: "newest", label: "Newest added" },
+  { value: "oldest", label: "Oldest added" },
+  { value: "name_asc", label: "Name (A-Z)" },
+  { value: "name_desc", label: "Name (Z-A)" },
   { value: "rent_high", label: "Rent (high to low)" },
   { value: "rent_low", label: "Rent (low to high)" },
+  { value: "purchase_high", label: "Purchase price (high)" },
+  { value: "purchase_low", label: "Purchase price (low)" },
+  { value: "sqft_high", label: "Square feet (high)" },
 ];
 
 const STATUS_FILTER = [
@@ -64,14 +68,22 @@ export default function PropertiesList({ properties }: { properties: Property[] 
       const rentA = Number(a.units?.[0]?.leases?.find((l: any) => l.status === "active")?.monthly_rent || 0);
       const rentB = Number(b.units?.[0]?.leases?.find((l: any) => l.status === "active")?.monthly_rent || 0);
       switch (sort) {
-        case "name":
+        case "name_asc":
           return (a.name || "").localeCompare(b.name || "");
+        case "name_desc":
+          return (b.name || "").localeCompare(a.name || "");
         case "oldest":
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         case "rent_high":
           return rentB - rentA;
         case "rent_low":
           return rentA - rentB;
+        case "purchase_high":
+          return Number(b.purchase_price || 0) - Number(a.purchase_price || 0);
+        case "purchase_low":
+          return Number(a.purchase_price || 0) - Number(b.purchase_price || 0);
+        case "sqft_high":
+          return Number(b.square_feet || 0) - Number(a.square_feet || 0);
         case "newest":
         default:
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -79,18 +91,6 @@ export default function PropertiesList({ properties }: { properties: Property[] 
     });
     return list;
   }, [properties, search, status, type, sort]);
-
-  if (properties.length === 0) {
-    return (
-      <EmptyState
-        icon={<Building2 className="w-6 h-6" />}
-        title="No properties yet"
-        description="Add your first property to start tracking rent, expenses, and maintenance."
-        actionLabel="+ Add property"
-        actionHref="/properties/new"
-      />
-    );
-  }
 
   return (
     <>
@@ -107,7 +107,15 @@ export default function PropertiesList({ properties }: { properties: Property[] 
         totalCount={properties.length}
       />
 
-      {filtered.length === 0 ? (
+      {properties.length === 0 ? (
+        <EmptyState
+          icon={<Building2 className="w-6 h-6" />}
+          title="No properties yet"
+          description="Add your first property to start tracking rent, expenses, and maintenance."
+          actionLabel="+ Add property"
+          actionHref="/properties/new"
+        />
+      ) : filtered.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
           No properties match your filters.
         </div>

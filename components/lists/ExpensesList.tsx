@@ -94,18 +94,6 @@ export default function ExpensesList({ expenses, properties }: Props) {
 
   const total = filtered.reduce((s, e) => s + Number(e.amount), 0);
 
-  if (expenses.length === 0) {
-    return (
-      <EmptyState
-        icon={<Receipt className="w-6 h-6" />}
-        title="No expenses yet"
-        description="Track your property expenses by category, date, and vendor."
-        actionLabel="+ Add expense"
-        actionHref="/expenses/new"
-      />
-    );
-  }
-
   const propOptions = [
     { value: "all", label: "All properties" },
     ...properties.map((p) => ({ value: p.id, label: p.name })),
@@ -128,7 +116,15 @@ export default function ExpensesList({ expenses, properties }: Props) {
         totalCount={expenses.length}
       />
 
-      {filtered.length === 0 ? (
+      {expenses.length === 0 ? (
+        <EmptyState
+          icon={<Receipt className="w-6 h-6" />}
+          title="No expenses yet"
+          description="Track your property expenses by category, date, and vendor."
+          actionLabel="+ Add expense"
+          actionHref="/expenses/new"
+        />
+      ) : filtered.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
           No expenses match your filters.
         </div>

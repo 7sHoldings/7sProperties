@@ -7,10 +7,13 @@ import ListControls from "@/components/ui/ListControls";
 import EmptyState from "@/components/ui/EmptyState";
 
 const SORTS = [
-  { value: "newest", label: "Newest" },
-  { value: "name", label: "Name (A-Z)" },
+  { value: "newest", label: "Newest added" },
+  { value: "oldest", label: "Oldest added" },
+  { value: "name_asc", label: "Name (A-Z)" },
+  { value: "name_desc", label: "Name (Z-A)" },
   { value: "rent_high", label: "Rent (high to low)" },
   { value: "rent_low", label: "Rent (low to high)" },
+  { value: "lease_end_soon", label: "Lease ending soonest" },
 ];
 
 const STATUS = [
@@ -45,13 +48,23 @@ export default function TenantsList({ tenants }: { tenants: any[] }) {
     list.sort((a, b) => {
       const rentA = Number(a.leases?.find((l: any) => l.status === "active")?.monthly_rent || 0);
       const rentB = Number(b.leases?.find((l: any) => l.status === "active")?.monthly_rent || 0);
+      const endA = a.leases?.find((l: any) => l.status === "active")?.end_date;
+      const endB = b.leases?.find((l: any) => l.status === "active")?.end_date;
       switch (sort) {
-        case "name":
+        case "name_asc":
           return (a.full_name || "").localeCompare(b.full_name || "");
+        case "name_desc":
+          return (b.full_name || "").localeCompare(a.full_name || "");
         case "rent_high":
           return rentB - rentA;
         case "rent_low":
           return rentA - rentB;
+        case "lease_end_soon":
+          if (!endA) return 1;
+          if (!endB) return -1;
+          return new Date(endA).getTime() - new Date(endB).getTime();
+        case "oldest":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         case "newest":
         default:
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -59,18 +72,6 @@ export default function TenantsList({ tenants }: { tenants: any[] }) {
     });
     return list;
   }, [tenants, search, status, sort]);
-
-  if (tenants.length === 0) {
-    return (
-      <EmptyState
-        icon={<Users className="w-6 h-6" />}
-        title="No tenants yet"
-        description="Add tenants and assign them to a vacant unit."
-        actionLabel="+ Add tenant"
-        actionHref="/tenants/new"
-      />
-    );
-  }
 
   return (
     <>
@@ -84,7 +85,15 @@ export default function TenantsList({ tenants }: { tenants: any[] }) {
         totalCount={tenants.length}
       />
 
-      {filtered.length === 0 ? (
+      {tenants.length === 0 ? (
+        <EmptyState
+          icon={<Users className="w-6 h-6" />}
+          title="No tenants yet"
+          description="Add tenants and assign them to a vacant unit."
+          actionLabel="+ Add tenant"
+          actionHref="/tenants/new"
+        />
+      ) : filtered.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
           No tenants match your filters.
         </div>

@@ -154,16 +154,6 @@ export default function DocumentsList({ docs, properties }: Props) {
     router.refresh();
   }
 
-  if (docs.length === 0) {
-    return (
-      <EmptyState
-        icon={<FileText className="w-6 h-6" />}
-        title="No documents yet"
-        description="Upload receipts, leases, photos, and tax documents from each item's edit page."
-      />
-    );
-  }
-
   const propOptions = [
     { value: "all", label: "All properties" },
     ...properties.map((p) => ({ value: p.id, label: p.name })),
@@ -185,7 +175,13 @@ export default function DocumentsList({ docs, properties }: Props) {
         totalCount={docs.length}
       />
 
-      {filtered.length === 0 ? (
+      {docs.length === 0 ? (
+        <EmptyState
+          icon={<FileText className="w-6 h-6" />}
+          title="No documents yet"
+          description="Upload receipts, leases, photos, and tax documents from each item's edit page or directly when creating expenses/payments."
+        />
+      ) : filtered.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
           No documents match your filters.
         </div>

@@ -76,18 +76,6 @@ export default function DistributionsList({ distributions, properties }: Props) 
 
   const total = filtered.reduce((s, d) => s + Number(d.amount), 0);
 
-  if (distributions.length === 0) {
-    return (
-      <EmptyState
-        icon={<Wallet className="w-6 h-6" />}
-        title="No distributions yet"
-        description="Record money you take out of rentals — for personal use or to invest in other businesses."
-        actionLabel="+ Record distribution"
-        actionHref="/distributions/new"
-      />
-    );
-  }
-
   const propOptions = [
     { value: "all", label: "All sources" },
     { value: "none", label: "General (no property)" },
@@ -110,7 +98,15 @@ export default function DistributionsList({ distributions, properties }: Props) 
         totalCount={distributions.length}
       />
 
-      {filtered.length === 0 ? (
+      {distributions.length === 0 ? (
+        <EmptyState
+          icon={<Wallet className="w-6 h-6" />}
+          title="No distributions yet"
+          description="Record money you take out of rentals — for personal use or to invest in other businesses."
+          actionLabel="+ Record distribution"
+          actionHref="/distributions/new"
+        />
+      ) : filtered.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
           No distributions match your filters.
         </div>
