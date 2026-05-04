@@ -11,20 +11,19 @@ import { loginSchema, type LoginInput } from "@/lib/schemas";
 import { Input } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
 
-export default function LoginPage() {
+export default function TenantLoginPage() {
   return (
     <Suspense fallback={null}>
-      <LoginForm />
+      <TenantLoginForm />
     </Suspense>
   );
 }
 
-function LoginForm() {
+function TenantLoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const supabase = createClient();
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [info, setInfo] = useState(
+  const [info] = useState(
     params.get("error") === "auth" ? "Authentication link was invalid or expired." : ""
   );
 
@@ -38,30 +37,22 @@ function LoginForm() {
   });
 
   async function onSubmit(values: LoginInput) {
-    setInfo("");
-    if (isSignUp) {
-      const { error } = await supabase.auth.signUp({
-        email: values.email,
-        password: values.password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-      });
-      if (error) {
-        toast.error(error.message);
-      } else {
-        setInfo("Check your email to confirm your account.");
-        toast.success("Confirmation email sent");
-      }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: values.email,
-        password: values.password,
-      });
-      if (error) toast.error(error.message);
-      else {
-        toast.success("Welcome back");
-        router.push("/");
-      }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: values.email,
+      password: values.password,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
     }
+    const role = data.user?.user_metadata?.role;
+    if (role !== "tenant") {
+      await supabase.auth.signOut();
+      toast.error("This login is for tenants. Use /login for property owners.");
+      return;
+    }
+    toast.success("Welcome back");
+    router.push("/tenant");
   }
 
   return (
@@ -73,13 +64,13 @@ function LoginForm() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-stone-900 leading-tight">7s Rental</h1>
-            <p className="text-xs text-stone-500">Property manager</p>
+            <p className="text-xs text-stone-500">Tenant portal</p>
           </div>
         </div>
 
-        <h2 className="text-base font-medium mb-4">{isSignUp ? "Create your account" : "Sign in"}</h2>
+        <h2 className="text-base font-medium mb-4">Sign in</h2>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
           <Input
             label="Email"
             type="email"
@@ -91,41 +82,24 @@ function LoginForm() {
           <Input
             label="Password"
             type="password"
-            autoComplete={isSignUp ? "new-password" : "current-password"}
+            autoComplete="current-password"
             required
             error={errors.password?.message}
-            hint={isSignUp ? "At least 6 characters" : undefined}
             {...register("password")}
           />
           <Button type="submit" loading={isSubmitting} fullWidth size="lg">
-            {isSignUp ? "Sign up" : "Sign in"}
+            Sign in
           </Button>
         </form>
 
         {info && <p className="mt-4 text-sm text-stone-600">{info}</p>}
 
-        <button
-          onClick={() => setIsSignUp(!isSignUp)}
-          className="mt-4 text-sm text-teal-700 hover:underline w-full text-center"
-        >
-          {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
-        </button>
-
-        {!isSignUp && (
-          <Link
-            href="/login/reset"
-            className="mt-2 text-xs text-stone-500 hover:underline w-full text-center block"
-          >
-            Forgot password?
-          </Link>
-        )}
-
-        <div className="mt-5 pt-4 border-t border-stone-100 text-center">
-          <Link
-            href="/tenant/login"
-            className="text-xs text-stone-500 hover:text-teal-700 hover:underline"
-          >
-            Are you a tenant? Sign in here →
+        <div className="mt-5 pt-4 border-t border-stone-100 text-xs text-stone-500 text-center space-y-2">
+          <p>
+            New tenant? You need an invite link from your property owner to sign up.
+          </p>
+          <Link href="/login" className="block text-teal-700 hover:underline">
+            Property owner? Sign in here →
           </Link>
         </div>
       </div>

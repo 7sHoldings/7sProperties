@@ -13,9 +13,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
@@ -25,12 +23,45 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Redirect unauthenticated users to login
-  if (!user && !request.nextUrl.pathname.startsWith("/login") && !request.nextUrl.pathname.startsWith("/auth")) {
+  const path = request.nextUrl.pathname;
+  const isOwnerLogin = path === "/login" || path.startsWith("/login/");
+  const isTenantLogin = path === "/tenant/login" || path === "/tenant/signup";
+  const isAuth = path.startsWith("/auth");
+  const isTenantArea = path.startsWith("/tenant") && !isTenantLogin;
+
+  // Unauthenticated: redirect to the appropriate login
+  if (!user) {
+    if (isOwnerLogin || isTenantLogin || isAuth) return response;
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = path.startsWith("/tenant") ? "/tenant/login" : "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Determine role from user metadata (set on signup)
+  const role = (user.user_metadata?.role as string) || "owner";
+
+  // Tenant trying to access owner-only pages → redirect to tenant portal
+  if (role === "tenant" && !isTenantArea && !isTenantLogin && !isAuth) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/tenant";
+    return NextResponse.redirect(url);
+  }
+
+  // Owner trying to access tenant pages → redirect to owner dashboard
+  if (role === "owner" && isTenantArea) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  // Already-authenticated user hitting login pages → bounce to their home
+  if (user && (isOwnerLogin || isTenantLogin)) {
+    const url = request.nextUrl.clone();
+    url.pathname = role === "tenant" ? "/tenant" : "/";
     return NextResponse.redirect(url);
   }
 

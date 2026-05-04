@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import DeleteButton from "@/components/DeleteButton";
 import DocumentUpload from "@/components/DocumentUpload";
+import InviteTenantButton from "@/components/InviteTenantButton";
 
 export default async function TenantDetailPage({
   params,
@@ -47,14 +48,19 @@ export default async function TenantDetailPage({
         <span className="text-stone-900">{tenant.full_name}</span>
       </div>
 
-      <div className="flex items-start justify-between mb-6">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="min-w-0">
           <h1 className="text-2xl font-medium">{tenant.full_name}</h1>
           <p className="text-sm text-stone-500 mt-1">
             {tenant.email || "—"} · {tenant.phone || "—"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <InviteTenantButton
+            tenantId={tenant.id}
+            tenantEmail={tenant.email}
+            portalActivated={!!tenant.portal_activated_at}
+          />
           <Link
             href={`/tenants/${tenant.id}/edit`}
             className="px-3 py-1.5 text-sm bg-white border border-stone-200 rounded-md hover:bg-stone-50"

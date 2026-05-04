@@ -7,7 +7,7 @@ export default async function MaintenancePage() {
   const [reqRes, propsRes] = await Promise.all([
     supabase
       .from("maintenance_requests")
-      .select("*, properties(name)")
+      .select("*, properties(name), tenants(full_name)")
       .order("reported_date", { ascending: false }),
     supabase.from("properties").select("id, name").order("name"),
   ]);

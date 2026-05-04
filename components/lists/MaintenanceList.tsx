@@ -149,7 +149,17 @@ export default function MaintenanceList({ requests, properties }: Props) {
                       {format(new Date(r.reported_date), "MMM d, yyyy")}
                     </td>
                     <td className="px-4 py-3">{r.properties?.name}</td>
-                    <td className="px-4 py-3">{r.title}</td>
+                    <td className="px-4 py-3">
+                      {r.title}
+                      {r.submitted_by_tenant && (
+                        <span className="ml-2 inline-block text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                          From tenant
+                        </span>
+                      )}
+                      {r.tenants?.full_name && (
+                        <div className="text-xs text-stone-500">{r.tenants.full_name}</div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <StatusBadge tone={priorityTone[r.priority] || "stone"}>
                         {r.priority}
@@ -185,8 +195,18 @@ export default function MaintenanceList({ requests, properties }: Props) {
               <div key={r.id} className="bg-white border border-stone-200 rounded-xl p-3">
                 <div className="flex justify-between items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{r.title}</div>
-                    <div className="text-xs text-stone-500 truncate">{r.properties?.name}</div>
+                    <div className="font-medium truncate">
+                      {r.title}
+                      {r.submitted_by_tenant && (
+                        <span className="ml-2 inline-block text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                          Tenant
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-stone-500 truncate">
+                      {r.properties?.name}
+                      {r.tenants?.full_name ? ` · ${r.tenants.full_name}` : ""}
+                    </div>
                     <div className="flex gap-1.5 mt-2">
                       <StatusBadge tone={priorityTone[r.priority] || "stone"}>
                         {r.priority}
