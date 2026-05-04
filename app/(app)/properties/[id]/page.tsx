@@ -6,6 +6,7 @@ import DeleteButton from "@/components/DeleteButton";
 import DocumentUpload from "@/components/DocumentUpload";
 import PropertyCashflow from "@/components/PropertyCashflow";
 import MortgageSection from "@/components/MortgageSection";
+import PropertyPhotoGallery from "@/components/PropertyPhotoGallery";
 
 export default async function PropertyDetailPage({
   params,
@@ -195,6 +196,10 @@ export default async function PropertyDetailPage({
             </ul>
           )}
         </div>
+      </div>
+
+      <div className="mb-3">
+        <PropertyPhotoGallery propertyId={property.id} />
       </div>
 
       <div className="mb-3">

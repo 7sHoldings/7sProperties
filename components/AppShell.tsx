@@ -22,6 +22,9 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import ThemeToggle from "@/components/ThemeToggle";
+import CommandPalette from "@/components/CommandPalette";
+import MobileBottomNav from "@/components/MobileBottomNav";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
@@ -141,9 +144,10 @@ export default function AppShell({ userEmail, children }: { userEmail: string; c
                   <div className="text-xs text-stone-500">Signed in as</div>
                   <div className="text-sm text-stone-800 truncate">{userEmail}</div>
                 </div>
+                <ThemeToggle />
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-3 py-2 hover:bg-stone-50 text-stone-700 flex items-center gap-2"
+                  className="w-full text-left px-3 py-2 hover:bg-stone-50 text-stone-700 flex items-center gap-2 text-sm"
                   role="menuitem"
                 >
                   <LogOut className="w-4 h-4" />
@@ -186,8 +190,11 @@ export default function AppShell({ userEmail, children }: { userEmail: string; c
         )}
 
         {/* Main */}
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className="flex-1 min-w-0 pb-16 md:pb-0">{children}</main>
       </div>
+
+      <MobileBottomNav />
+      <CommandPalette />
     </div>
   );
 }

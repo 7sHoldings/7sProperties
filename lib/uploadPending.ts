@@ -6,11 +6,14 @@ const COLUMN: Record<string, string> = {
   property: "property_id",
   tenant: "tenant_id",
   lease: "lease_id",
+  // maintenance attachments are stored against the related property
+  maintenance: "property_id",
 };
 
 const DOC_TYPE: Record<string, string> = {
   expense: "receipt",
   payment: "receipt",
+  maintenance: "photo",
 };
 
 /**
@@ -21,7 +24,7 @@ export async function uploadPendingFiles(
   supabase: SupabaseClient,
   userId: string,
   recordId: string,
-  recordType: "expense" | "payment" | "property" | "tenant" | "lease",
+  recordType: "expense" | "payment" | "property" | "tenant" | "lease" | "maintenance",
   files: File[]
 ) {
   const column = COLUMN[recordType];

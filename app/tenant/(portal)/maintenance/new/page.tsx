@@ -11,6 +11,8 @@ import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
+import PendingFilesInput from "@/components/PendingFilesInput";
+import { uploadPendingFiles } from "@/lib/uploadPending";
 
 const schema = z.object({
   title: z.string().trim().min(1, "Briefly describe the issue").max(150),
@@ -25,6 +27,7 @@ export default function TenantNewMaintenancePage() {
   const [tenant, setTenant] = useState<any | null>(null);
   const [property, setProperty] = useState<any | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const {
     register,
@@ -125,7 +128,33 @@ export default function TenantNewMaintenancePage() {
       toast.error(error.message);
       return;
     }
-    toast.success("Request submitted");
+
+    if (pendingFiles.length > 0) {
+      // Photos go in storage tied to the property (RLS allows tenant doc inserts via tenant_id)
+      // We store them with tenant_id link for the tenant to retain ability to view them
+      const userId = user.id;
+      for (const file of pendingFiles) {
+        const path = `${userId}/maintenance/${property.id}/${Date.now()}-${file.name}`;
+        const { error: upErr } = await supabase.storage.from("documents").upload(path, file);
+        if (upErr) continue;
+        await supabase.from("documents").insert({
+          owner_id: propWithOwner.owner_id,
+          property_id: property.id,
+          tenant_id: tenant.id,
+          document_type: "photo",
+          file_name: file.name,
+          file_path: path,
+          file_size: file.size,
+          mime_type: file.type,
+        });
+      }
+    }
+
+    toast.success(
+      pendingFiles.length > 0
+        ? `Request submitted with ${pendingFiles.length} photo${pendingFiles.length === 1 ? "" : "s"}`
+        : "Request submitted"
+    );
     router.push("/tenant/maintenance");
     router.refresh();
   }
@@ -183,6 +212,13 @@ export default function TenantNewMaintenancePage() {
             ]}
             error={errors.priority?.message}
             {...register("priority")}
+          />
+
+          <PendingFilesInput
+            files={pendingFiles}
+            onChange={setPendingFiles}
+            label="Photos"
+            hint="Pictures help your owner diagnose the issue faster. Max 10 MB each."
           />
 
           <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">

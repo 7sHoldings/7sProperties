@@ -13,11 +13,13 @@ import {
   Menu,
   X,
   ChevronDown,
+  Calendar,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/tenant", label: "Dashboard", icon: Home, exact: true },
+  { href: "/tenant/bills", label: "Bills", icon: Calendar },
   { href: "/tenant/payments", label: "Payments", icon: DollarSign },
   { href: "/tenant/maintenance", label: "Maintenance", icon: Wrench },
   { href: "/tenant/documents", label: "Documents", icon: FileText },
