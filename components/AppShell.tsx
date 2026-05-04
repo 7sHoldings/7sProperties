@@ -17,6 +17,8 @@ import {
   Bell,
   ChevronDown,
   Wallet,
+  Repeat,
+  Car,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -26,6 +28,8 @@ const navItems = [
   { href: "/tenants", label: "Tenants", icon: Users },
   { href: "/payments", label: "Payments", icon: DollarSign },
   { href: "/expenses", label: "Expenses", icon: Receipt },
+  { href: "/recurring", label: "Recurring", icon: Repeat },
+  { href: "/mileage", label: "Mileage", icon: Car },
   { href: "/maintenance", label: "Maintenance", icon: Wrench },
   { href: "/distributions", label: "Profit taken out", icon: Wallet },
   { href: "/reports", label: "Reports", icon: FileText },

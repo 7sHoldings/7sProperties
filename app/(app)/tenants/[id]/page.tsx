@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import DeleteButton from "@/components/DeleteButton";
 import DocumentUpload from "@/components/DocumentUpload";
 import InviteTenantButton from "@/components/InviteTenantButton";
+import TenantLedger from "@/components/TenantLedger";
+import DepositLedger from "@/components/DepositLedger";
+import RenewLeaseButton from "@/components/RenewLeaseButton";
 
 export default async function TenantDetailPage({
   params,
@@ -82,9 +85,30 @@ export default async function TenantDetailPage({
         <Stat label="Lifetime paid" value={`$${totalPaid.toLocaleString()}`} />
       </div>
 
+      {(() => {
+        const activeLease = leases.find((l: any) => l.status === "active");
+        if (!activeLease) return null;
+        return (
+          <div className="space-y-3 mb-3">
+            <TenantLedger lease={activeLease} />
+            <DepositLedger
+              leaseId={activeLease.id}
+              initialDeposit={Number(activeLease.security_deposit) || 0}
+            />
+          </div>
+        );
+      })()}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <h2 className="font-medium mb-3">Lease history</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-medium">Lease history</h2>
+            {(() => {
+              const activeLease = leases.find((l: any) => l.status === "active");
+              if (!activeLease) return null;
+              return <RenewLeaseButton lease={activeLease as any} />;
+            })()}
+          </div>
           {leases.length === 0 ? (
             <p className="text-sm text-stone-500">No leases.</p>
           ) : (

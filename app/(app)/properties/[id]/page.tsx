@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { format, subMonths, startOfMonth } from "date-fns";
+import { format, subMonths, startOfMonth, startOfYear, differenceInCalendarDays, max as dMax, min as dMin } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import DeleteButton from "@/components/DeleteButton";
 import DocumentUpload from "@/components/DocumentUpload";
 import PropertyCashflow from "@/components/PropertyCashflow";
+import MortgageSection from "@/components/MortgageSection";
 
 export default async function PropertyDetailPage({
   params,
@@ -111,12 +112,49 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         <Stat label="Type" value={(property.property_type || "—").replace("_", " ")} />
         <Stat label="Bedrooms" value={property.bedrooms ?? "—"} />
         <Stat label="Bathrooms" value={property.bathrooms ?? "—"} />
         <Stat label="Active rent" value={totalRent ? `$${totalRent.toLocaleString()}/mo` : "—"} />
       </div>
+
+      {(() => {
+        const yearStart = startOfYear(new Date());
+        const today = new Date();
+        const ytdDays = differenceInCalendarDays(today, yearStart) + 1;
+        const occupiedDays = Math.min(
+          ytdDays,
+          leases
+            .filter((l: any) => new Date(l.start_date) <= today && new Date(l.end_date) >= yearStart)
+            .reduce((sum: number, l: any) => {
+              const ls = dMax([new Date(l.start_date), yearStart]);
+              const le = dMin([new Date(l.end_date), today]);
+              return sum + Math.max(0, differenceInCalendarDays(le, ls) + 1);
+            }, 0)
+        );
+        const vacantDays = Math.max(0, ytdDays - occupiedDays);
+        if (totalRent === 0 && vacantDays === 0) return null;
+        const dailyRate = totalRent ? totalRent / 30 : 0;
+        const lostRent = vacantDays * dailyRate;
+        return (
+          <div className="bg-white border border-stone-200 rounded-xl p-4 mb-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div>
+              <span className="text-stone-500">Vacancy YTD: </span>
+              <span className="font-medium">{vacantDays} days</span>
+              <span className="text-stone-500"> of {ytdDays} ({Math.round((vacantDays / ytdDays) * 100)}%)</span>
+            </div>
+            {dailyRate > 0 && (
+              <div>
+                <span className="text-stone-500">Estimated lost rent: </span>
+                <span className="font-medium text-amber-700">
+                  ${Math.round(lostRent).toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <div className="bg-white border border-stone-200 rounded-xl p-4">
@@ -232,6 +270,10 @@ export default async function PropertyDetailPage({
           )}
         </div>
 
+        <MortgageSection propertyId={property.id} />
+      </div>
+
+      <div className="mt-3">
         <DocumentUpload propertyId={property.id} />
       </div>
 

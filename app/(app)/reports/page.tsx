@@ -1,27 +1,35 @@
 import { createClient } from "@/lib/supabase/server";
 import { startOfYear, format } from "date-fns";
+import CsvExportButtons from "@/components/CsvExportButtons";
 
 export default async function ReportsPage() {
   const supabase = await createClient();
+  const year = new Date().getFullYear();
   const yearStart = format(startOfYear(new Date()), "yyyy-MM-dd");
 
-  const [propsRes, paymentsRes, expensesRes, distributionsRes] = await Promise.all([
+  const [propsRes, paymentsRes, expensesRes, distributionsRes, mileageRes, expensesAllRes] = await Promise.all([
     supabase.from("properties").select("id, name"),
     supabase
       .from("payments")
       .select("amount, leases(units(property_id))")
       .gte("for_month", yearStart),
-    supabase.from("expenses").select("property_id, amount, category").gte("expense_date", yearStart),
+    supabase
+      .from("expenses")
+      .select("property_id, amount, category, vendor")
+      .gte("expense_date", yearStart),
     supabase
       .from("distributions")
-      .select("property_id, amount")
+      .select("property_id, amount, type")
       .gte("distribution_date", yearStart),
+    supabase.from("mileage_logs").select("miles").gte("trip_date", yearStart),
+    supabase.from("expenses").select("vendor, amount").gte("expense_date", yearStart),
   ]);
 
   const properties = propsRes.data || [];
   const payments = paymentsRes.data || [];
   const expenses = expensesRes.data || [];
   const distributions = distributionsRes.data || [];
+  const mileage = mileageRes.data || [];
 
   const incomeByProp: Record<string, number> = {};
   payments.forEach((p: any) => {
@@ -34,7 +42,12 @@ export default async function ReportsPage() {
   });
   const distByProp: Record<string, number> = {};
   let generalDist = 0;
+  let totalContributions = 0;
   distributions.forEach((d: any) => {
+    if (d.type === "contribution") {
+      totalContributions += Number(d.amount);
+      return;
+    }
     if (d.property_id) {
       distByProp[d.property_id] = (distByProp[d.property_id] || 0) + Number(d.amount);
     } else {
@@ -44,19 +57,37 @@ export default async function ReportsPage() {
 
   const totalIncome = Object.values(incomeByProp).reduce((s, v) => s + v, 0);
   const totalExp = Object.values(expByProp).reduce((s, v) => s + v, 0);
-  const totalDist = distributions.reduce((s, d: any) => s + Number(d.amount), 0);
+  const totalDist = distributions
+    .filter((d: any) => d.type !== "contribution")
+    .reduce((s, d: any) => s + Number(d.amount), 0);
   const net = totalIncome - totalExp;
   const retained = net - totalDist;
+  const totalMiles = mileage.reduce((s: number, m: any) => s + Number(m.miles), 0);
+  const mileageDeduction = totalMiles * 0.67;
 
   const byCategory: Record<string, number> = {};
   expenses.forEach((e: any) => {
     byCategory[e.category] = (byCategory[e.category] || 0) + Number(e.amount);
   });
 
+  // 1099-NEC candidates: vendors paid >= $600 for the year
+  const byVendor: Record<string, number> = {};
+  (expensesAllRes.data || []).forEach((e: any) => {
+    if (e.vendor) byVendor[e.vendor] = (byVendor[e.vendor] || 0) + Number(e.amount);
+  });
+  const vendors1099 = Object.entries(byVendor)
+    .filter(([, amt]) => amt >= 600)
+    .sort((a, b) => b[1] - a[1]);
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-medium mb-1">Reports</h1>
-      <p className="text-sm text-stone-500 mb-6">{format(new Date(), "yyyy")} year-to-date</p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-medium">Reports</h1>
+          <p className="text-sm text-stone-500">{year} year-to-date</p>
+        </div>
+        <CsvExportButtons year={year} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Stat label="Income" value={`$${totalIncome.toLocaleString()}`} tone="green" />
@@ -68,6 +99,29 @@ export default async function ReportsPage() {
           tone={retained >= 0 ? "default" : "red"}
         />
       </div>
+
+      {(totalMiles > 0 || totalContributions > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+          {totalMiles > 0 && (
+            <div className="bg-white border border-stone-200 rounded-xl p-4">
+              <div className="text-sm text-stone-500 mb-1">Mileage deduction</div>
+              <div className="text-xl font-medium text-green-700">
+                ${mileageDeduction.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </div>
+              <div className="text-xs text-stone-500 mt-1">
+                {totalMiles.toLocaleString()} miles @ $0.67/mile
+              </div>
+            </div>
+          )}
+          {totalContributions > 0 && (
+            <div className="bg-white border border-stone-200 rounded-xl p-4">
+              <div className="text-sm text-stone-500 mb-1">Owner contributions</div>
+              <div className="text-xl font-medium">${totalContributions.toLocaleString()}</div>
+              <div className="text-xs text-stone-500 mt-1">Cash you put in this year</div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
@@ -156,6 +210,37 @@ export default async function ReportsPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden mt-3">
+        <div className="px-4 py-3 border-b border-stone-100">
+          <h2 className="font-medium">Contractors paid &ge; $600 (1099-NEC candidates)</h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            You may need to issue a 1099-NEC to anyone listed below for {year}.
+          </p>
+        </div>
+        {vendors1099.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-stone-500 text-center">
+            No vendors over $600 yet.
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium">Vendor</th>
+                <th className="text-right px-4 py-2 font-medium">Total paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vendors1099.map(([vendor, amt]) => (
+                <tr key={vendor} className="border-t border-stone-100">
+                  <td className="px-4 py-2.5">{vendor}</td>
+                  <td className="px-4 py-2.5 text-right">${amt.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

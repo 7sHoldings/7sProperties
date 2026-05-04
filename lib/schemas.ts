@@ -167,10 +167,101 @@ export const distributionSchema = z.object({
   ),
   destination: z.string().trim().min(1, "Where did the money go?").max(150),
   payment_method: optionalStr,
+  type: z.enum(["distribution", "contribution"]).default("distribution"),
   notes: optionalStr,
 });
 export type DistributionValues = z.input<typeof distributionSchema>;
 export type DistributionInput = z.output<typeof distributionSchema>;
+
+export const recurringExpenseSchema = z.object({
+  property_id: z.string().min(1, "Select a property"),
+  category: z.string().min(1, "Category required"),
+  description: z.string().trim().min(1, "Description required").max(200),
+  vendor: optionalStr,
+  amount: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number({ message: "Amount required" }).positive("Amount must be greater than 0")
+  ),
+  frequency: z.enum(["monthly", "quarterly", "yearly"]),
+  start_date: z.string().min(1, "Start date required"),
+  end_date: optionalStr,
+  day_of_month: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 1 : Number(v)),
+    z.number().int().min(1, "1-28").max(28, "1-28")
+  ),
+  active: z.preprocess((v) => v === true || v === "true" || v === "on", z.boolean().default(true)),
+  notes: optionalStr,
+});
+export type RecurringExpenseValues = z.input<typeof recurringExpenseSchema>;
+export type RecurringExpenseInput = z.output<typeof recurringExpenseSchema>;
+
+export const mileageSchema = z.object({
+  property_id: optionalStr,
+  trip_date: z
+    .string()
+    .min(1, "Date required")
+    .refine((d) => d <= today(), "Date cannot be in the future"),
+  miles: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number({ message: "Miles required" }).positive("Must be greater than 0")
+  ),
+  purpose: z.string().trim().min(1, "What was the trip for?").max(200),
+  notes: optionalStr,
+});
+export type MileageValues = z.input<typeof mileageSchema>;
+export type MileageInput = z.output<typeof mileageSchema>;
+
+export const mortgageSchema = z.object({
+  lender: optionalStr,
+  original_principal: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().nonnegative().optional()
+  ),
+  current_balance: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().nonnegative().optional()
+  ),
+  interest_rate: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().min(0).max(99).optional()
+  ),
+  monthly_payment: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().nonnegative().optional()
+  ),
+  term_months: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().int().positive().optional()
+  ),
+  start_date: optionalStr,
+  notes: optionalStr,
+});
+export type MortgageValues = z.input<typeof mortgageSchema>;
+export type MortgageInput = z.output<typeof mortgageSchema>;
+
+export const lateFeeSchema = z.object({
+  charge_date: z.string().min(1, "Date required"),
+  amount: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number({ message: "Amount required" }).positive("Must be greater than 0")
+  ),
+  description: z.string().trim().min(1, "Reason required").max(200),
+});
+export type LateFeeValues = z.input<typeof lateFeeSchema>;
+export type LateFeeInput = z.output<typeof lateFeeSchema>;
+
+export const depositTxSchema = z.object({
+  transaction_date: z.string().min(1, "Date required"),
+  transaction_type: z.enum(["refund", "deduction"]),
+  amount: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number({ message: "Amount required" }).positive("Must be greater than 0")
+  ),
+  description: z.string().trim().min(1, "Reason required").max(200),
+  notes: optionalStr,
+});
+export type DepositTxValues = z.input<typeof depositTxSchema>;
+export type DepositTxInput = z.output<typeof depositTxSchema>;
 
 export const loginSchema = z.object({
   email: z.string().email("Invalid email"),

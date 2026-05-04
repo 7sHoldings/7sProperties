@@ -48,6 +48,7 @@ export default function DistributionForm({ mode, distributionId, initial }: Prop
       amount: initial?.amount,
       destination: initial?.destination ?? "",
       payment_method: initial?.payment_method ?? "bank_transfer",
+      type: (initial?.type as any) ?? "distribution",
       notes: initial?.notes ?? "",
     },
   });
@@ -75,6 +76,7 @@ export default function DistributionForm({ mode, distributionId, initial }: Prop
       amount: values.amount,
       destination: values.destination,
       payment_method: values.payment_method || null,
+      type: values.type || "distribution",
       notes: values.notes || null,
     };
 
@@ -110,7 +112,18 @@ export default function DistributionForm({ mode, distributionId, initial }: Prop
       noValidate
     >
       <Select
-        label="From property"
+        label="Type"
+        required
+        options={[
+          { value: "distribution", label: "Distribution (taking money out)" },
+          { value: "contribution", label: "Contribution (putting money in)" },
+        ]}
+        hint="Distribution = taking profit. Contribution = adding cash from your pocket."
+        {...register("type")}
+      />
+
+      <Select
+        label="Property"
         hint="Leave blank if not tied to a specific property"
         error={errors.property_id?.message}
         {...register("property_id")}
