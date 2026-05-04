@@ -31,7 +31,8 @@ export async function middleware(request: NextRequest) {
   const isOwnerLogin = path === "/login" || path.startsWith("/login/");
   const isTenantLogin = path === "/tenant/login" || path === "/tenant/signup";
   const isAuth = path.startsWith("/auth");
-  const isTenantArea = path.startsWith("/tenant") && !isTenantLogin;
+  // Match /tenant exactly or /tenant/...  — but NOT /tenants (owner page)
+  const isTenantArea = (path === "/tenant" || path.startsWith("/tenant/")) && !isTenantLogin;
 
   // Unauthenticated: redirect to the appropriate login
   if (!user) {
