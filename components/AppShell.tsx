@@ -24,7 +24,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Home },
+  { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/properties", label: "Properties", icon: Building2 },
   { href: "/tenants", label: "Tenants", icon: Users },
   { href: "/payments", label: "Payments", icon: DollarSign },
@@ -38,7 +38,7 @@ const navItems = [
 ];
 
 function isActive(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
+  if (href === "/dashboard") return pathname === "/dashboard";
   return pathname.startsWith(href);
 }
 
@@ -103,7 +103,7 @@ export default function AppShell({ userEmail, children }: { userEmail: string; c
             <Menu className="w-5 h-5" />
           </button>
 
-          <Link href="/" className="flex-shrink-0">
+          <Link href="/dashboard" className="flex-shrink-0">
             <Logo />
           </Link>
 

@@ -59,7 +59,7 @@ function LoginForm() {
       if (error) toast.error(error.message);
       else {
         toast.success("Welcome back");
-        router.push("/");
+        router.push("/dashboard");
       }
     }
   }

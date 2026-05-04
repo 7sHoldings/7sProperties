@@ -30,7 +30,7 @@ export default function UpdatePasswordPage() {
     if (error) toast.error(error.message);
     else {
       toast.success("Password updated");
-      router.push("/");
+      router.push("/dashboard");
     }
   }
 

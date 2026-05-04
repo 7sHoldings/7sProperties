@@ -1,6 +1,13 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const PUBLIC_PATHS = ["/", "/login", "/tenant/login", "/tenant/signup", "/auth"];
+
+function isPublicPath(path: string) {
+  if (path === "/") return true;
+  return PUBLIC_PATHS.some((p) => p !== "/" && (path === p || path.startsWith(p + "/")));
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -28,41 +35,38 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isOwnerLogin = path === "/login" || path.startsWith("/login/");
-  const isTenantLogin = path === "/tenant/login" || path === "/tenant/signup";
-  const isAuth = path.startsWith("/auth");
-  // Match /tenant exactly or /tenant/...  — but NOT /tenants (owner page)
-  const isTenantArea = (path === "/tenant" || path.startsWith("/tenant/")) && !isTenantLogin;
+  const isOwnerLoginRoute = path === "/login" || path.startsWith("/login/");
+  const isTenantLoginRoute = path === "/tenant/login" || path === "/tenant/signup";
+  const isTenantArea = (path === "/tenant" || path.startsWith("/tenant/")) && !isTenantLoginRoute;
 
-  // Unauthenticated: redirect to the appropriate login
+  // Unauthenticated: allow public paths, redirect everything else to appropriate login
   if (!user) {
-    if (isOwnerLogin || isTenantLogin || isAuth) return response;
+    if (isPublicPath(path)) return response;
     const url = request.nextUrl.clone();
     url.pathname = path.startsWith("/tenant") ? "/tenant/login" : "/login";
     return NextResponse.redirect(url);
   }
 
-  // Determine role from user metadata (set on signup)
   const role = (user.user_metadata?.role as string) || "owner";
 
-  // Tenant trying to access owner-only pages → redirect to tenant portal
-  if (role === "tenant" && !isTenantArea && !isTenantLogin && !isAuth) {
+  // Logged-in user hitting a login page → bounce to their home
+  if (isOwnerLoginRoute || isTenantLoginRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = role === "tenant" ? "/tenant" : "/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  // Tenant hitting an owner-only path → bounce to tenant portal
+  if (role === "tenant" && !isTenantArea && path !== "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/tenant";
     return NextResponse.redirect(url);
   }
 
-  // Owner trying to access tenant pages → redirect to owner dashboard
+  // Owner hitting a tenant-only path → bounce to owner dashboard
   if (role === "owner" && isTenantArea) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
-
-  // Already-authenticated user hitting login pages → bounce to their home
-  if (user && (isOwnerLogin || isTenantLogin)) {
-    const url = request.nextUrl.clone();
-    url.pathname = role === "tenant" ? "/tenant" : "/";
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
