@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { format } from "date-fns";
+import { format, subMonths, startOfMonth } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import DeleteButton from "@/components/DeleteButton";
 import DocumentUpload from "@/components/DocumentUpload";
+import PropertyCashflow from "@/components/PropertyCashflow";
 
 export default async function PropertyDetailPage({
   params,
@@ -21,7 +22,9 @@ export default async function PropertyDetailPage({
 
   if (!property) notFound();
 
-  const [leasesRes, paymentsRes, expensesRes, maintRes] = await Promise.all([
+  const cashflowSince = format(startOfMonth(subMonths(new Date(), 11)), "yyyy-MM-dd");
+
+  const [leasesRes, paymentsRes, expensesRes, maintRes, cashflowPaymentsRes, cashflowExpensesRes, distRes] = await Promise.all([
     supabase
       .from("leases")
       .select("*, tenants(id, full_name), units!inner(id, unit_label, property_id)")
@@ -45,12 +48,30 @@ export default async function PropertyDetailPage({
       .eq("property_id", id)
       .order("reported_date", { ascending: false })
       .limit(10),
+    supabase
+      .from("payments")
+      .select("amount, for_month, leases!inner(units!inner(property_id))")
+      .eq("leases.units.property_id", id)
+      .gte("for_month", cashflowSince),
+    supabase
+      .from("expenses")
+      .select("amount, expense_date")
+      .eq("property_id", id)
+      .gte("expense_date", cashflowSince),
+    supabase
+      .from("distributions")
+      .select("amount, distribution_date")
+      .eq("property_id", id)
+      .gte("distribution_date", cashflowSince),
   ]);
 
   const leases = (leasesRes.data || []) as any[];
   const payments = (paymentsRes.data || []) as any[];
   const expenses = (expensesRes.data || []) as any[];
   const maintenance = (maintRes.data || []) as any[];
+  const cashflowPayments = (cashflowPaymentsRes.data || []) as any[];
+  const cashflowExpenses = (cashflowExpensesRes.data || []) as any[];
+  const cashflowDistributions = (distRes.data || []) as any[];
 
   const totalRent = leases
     .filter((l: any) => l.status === "active")
@@ -136,6 +157,18 @@ export default async function PropertyDetailPage({
             </ul>
           )}
         </div>
+      </div>
+
+      <div className="mb-3">
+        <PropertyCashflow
+          monthsBack={12}
+          payments={cashflowPayments.map((p: any) => ({ amount: p.amount, for_month: p.for_month }))}
+          expenses={cashflowExpenses.map((e: any) => ({ amount: e.amount, expense_date: e.expense_date }))}
+          distributions={cashflowDistributions.map((d: any) => ({
+            amount: d.amount,
+            distribution_date: d.distribution_date,
+          }))}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">

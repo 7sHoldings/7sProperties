@@ -155,6 +155,23 @@ export const maintenanceSchema = z.object({
 export type MaintenanceValues = z.input<typeof maintenanceSchema>;
 export type MaintenanceInput = z.output<typeof maintenanceSchema>;
 
+export const distributionSchema = z.object({
+  property_id: optionalStr,
+  distribution_date: z
+    .string()
+    .min(1, "Date is required")
+    .refine((d) => d <= today(), "Date cannot be in the future"),
+  amount: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number({ message: "Amount required" }).positive("Amount must be greater than 0")
+  ),
+  destination: z.string().trim().min(1, "Where did the money go?").max(150),
+  payment_method: optionalStr,
+  notes: optionalStr,
+});
+export type DistributionValues = z.input<typeof distributionSchema>;
+export type DistributionInput = z.output<typeof distributionSchema>;
+
 export const loginSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),

@@ -8,7 +8,9 @@ export default async function DashboardPage() {
   const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
   const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
 
-  const [propsRes, unitsRes, leasesRes, paymentsRes, expensesRes] = await Promise.all([
+  const yearStart = format(new Date(new Date().getFullYear(), 0, 1), "yyyy-MM-dd");
+
+  const [propsRes, unitsRes, leasesRes, paymentsRes, expensesRes, ytdPaymentsRes, ytdExpensesRes, ytdDistRes] = await Promise.all([
     supabase.from("properties").select("id, name"),
     supabase.from("units").select("id, status"),
     supabase
@@ -28,6 +30,9 @@ export default async function DashboardPage() {
       .select("id, amount, description, expense_date, properties(name)")
       .order("expense_date", { ascending: false })
       .limit(5),
+    supabase.from("payments").select("amount").gte("for_month", yearStart),
+    supabase.from("expenses").select("amount").gte("expense_date", yearStart),
+    supabase.from("distributions").select("amount").gte("distribution_date", yearStart),
   ]);
 
   const properties = propsRes.data || [];
@@ -41,6 +46,12 @@ export default async function DashboardPage() {
   const expectedRent = activeLeases.reduce((sum, l) => sum + Number(l.monthly_rent), 0);
   const collectedRent = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = Math.max(0, expectedRent - collectedRent);
+
+  const ytdIncome = (ytdPaymentsRes.data || []).reduce((s, p: any) => s + Number(p.amount), 0);
+  const ytdExpenses = (ytdExpensesRes.data || []).reduce((s, e: any) => s + Number(e.amount), 0);
+  const ytdDistributions = (ytdDistRes.data || []).reduce((s, d: any) => s + Number(d.amount), 0);
+  const ytdNet = ytdIncome - ytdExpenses;
+  const available = ytdNet - ytdDistributions;
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
@@ -67,7 +78,7 @@ export default async function DashboardPage() {
 
       <LeaseAlerts />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         <KpiCard
           label="Total properties"
           value={properties.length.toString()}
@@ -88,6 +99,31 @@ export default async function DashboardPage() {
           label="Active leases"
           value={activeLeases.length.toString()}
           sub="Currently active"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <KpiCard
+          label="YTD income"
+          value={`$${ytdIncome.toLocaleString()}`}
+          sub={`${new Date().getFullYear()} year-to-date`}
+          tone="success"
+        />
+        <KpiCard
+          label="YTD expenses"
+          value={`$${ytdExpenses.toLocaleString()}`}
+          sub="Including maintenance"
+        />
+        <KpiCard
+          label="Profit taken out"
+          value={`$${ytdDistributions.toLocaleString()}`}
+          sub="YTD distributions"
+        />
+        <KpiCard
+          label="Available to distribute"
+          value={`$${Math.max(0, available).toLocaleString()}`}
+          sub={available < 0 ? "Negative — pulled more than earned" : "Net YTD − distributions"}
+          tone={available > 0 ? "success" : available < 0 ? "warning" : undefined}
         />
       </div>
 
