@@ -56,18 +56,16 @@ function TenantSignupForm() {
         return;
       }
       const { data, error } = await supabase
-        .from("tenants")
-        .select("id, full_name, email, invite_expires_at, portal_activated_at")
-        .eq("invite_token", token)
+        .rpc("lookup_tenant_invite", { p_token: token })
         .maybeSingle();
 
       if (error || !data) {
         setTokenError("This invite link is invalid. Ask your property owner to send a new one.");
-      } else if (data.portal_activated_at) {
+      } else if ((data as any).portal_activated_at) {
         setTokenError("This invite has already been used. Sign in instead.");
-      } else if (data.invite_expires_at && new Date(data.invite_expires_at) < new Date()) {
+      } else if ((data as any).invite_expires_at && new Date((data as any).invite_expires_at) < new Date()) {
         setTokenError("This invite link has expired. Ask your property owner to send a new one.");
-      } else if (!data.email) {
+      } else if (!(data as any).email) {
         setTokenError("Your tenant record has no email. Contact your property owner.");
       } else {
         setTenant(data);
@@ -95,16 +93,13 @@ function TenantSignupForm() {
     }
 
     // Link the tenant row to this new auth user and consume the invite
+    // (uses a SECURITY DEFINER RPC because the user can't UPDATE tenants
+    // directly until auth_user_id is set — chicken/egg)
     if (data.user) {
-      await supabase
-        .from("tenants")
-        .update({
-          auth_user_id: data.user.id,
-          portal_activated_at: new Date().toISOString(),
-          invite_token: null,
-          invite_expires_at: null,
-        })
-        .eq("id", tenant.id);
+      await supabase.rpc("activate_tenant_invite", {
+        p_token: token,
+        p_user_id: data.user.id,
+      });
     }
 
     toast.success("Account created");
