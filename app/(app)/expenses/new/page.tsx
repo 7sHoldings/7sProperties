@@ -11,10 +11,7 @@ export default function NewExpensePage() {
         <span>›</span>
         <span className="text-stone-900">Add</span>
       </div>
-      <h1 className="text-2xl font-medium mb-2">Add expense</h1>
-      <p className="text-sm text-stone-500 mb-6">
-        Save first, then you can upload receipt photos on the next page.
-      </p>
+      <h1 className="text-2xl font-medium mb-6">Add expense</h1>
       <ExpenseForm mode="create" />
     </div>
   );

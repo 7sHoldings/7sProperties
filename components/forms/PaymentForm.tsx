@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import { paymentSchema, type PaymentInput, type PaymentValues } from "@/lib/schemas";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
+import PendingFilesInput from "@/components/PendingFilesInput";
+import { uploadPendingFiles } from "@/lib/uploadPending";
 
 const METHODS = [
   { value: "bank_transfer", label: "Bank transfer" },
@@ -33,6 +35,7 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
   const params = useSearchParams();
   const supabase = createClient();
   const [leases, setLeases] = useState<any[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const today = format(new Date(), "yyyy-MM-dd");
   const thisMonth = format(startOfMonth(new Date()), "yyyy-MM-dd");
 
@@ -90,8 +93,17 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
         toast.error(error.message);
         return;
       }
-      toast.success("Payment recorded — upload receipts below");
-      router.push(`/payments/${created.id}/edit`);
+
+      if (pendingFiles.length > 0) {
+        await uploadPendingFiles(supabase, user.id, created.id, "payment", pendingFiles);
+      }
+
+      toast.success(
+        pendingFiles.length > 0
+          ? `Payment recorded with ${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"}`
+          : "Payment recorded"
+      );
+      router.push("/payments");
       router.refresh();
       return;
     }
@@ -159,6 +171,15 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
         {...register("reference_number")}
       />
       <Textarea label="Notes" rows={2} error={errors.notes?.message} {...register("notes")} />
+
+      {mode === "create" && (
+        <PendingFilesInput
+          files={pendingFiles}
+          onChange={setPendingFiles}
+          label="Payment proof / check images"
+          hint="Attach screenshots, check photos, or ACH confirmations. Max 10 MB each."
+        />
+      )}
 
       <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
         <Link

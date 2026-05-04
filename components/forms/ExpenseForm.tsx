@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import { expenseSchema, type ExpenseInput, type ExpenseValues } from "@/lib/schemas";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
+import PendingFilesInput from "@/components/PendingFilesInput";
+import { uploadPendingFiles } from "@/lib/uploadPending";
 
 const CATEGORIES = [
   "repairs",
@@ -40,6 +42,7 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const [properties, setProperties] = useState<any[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const {
     register,
@@ -95,8 +98,17 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
         toast.error(error.message);
         return;
       }
-      toast.success("Expense added — upload receipts below");
-      router.push(`/expenses/${created.id}/edit`);
+
+      if (pendingFiles.length > 0) {
+        await uploadPendingFiles(supabase, user.id, created.id, "expense", pendingFiles);
+      }
+
+      toast.success(
+        pendingFiles.length > 0
+          ? `Expense added with ${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"}`
+          : "Expense added"
+      );
+      router.push("/expenses");
       router.refresh();
       return;
     } else {
@@ -167,6 +179,15 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
       />
       <Input label="Vendor" error={errors.vendor?.message} {...register("vendor")} />
       <Textarea label="Notes" rows={2} error={errors.notes?.message} {...register("notes")} />
+
+      {mode === "create" && (
+        <PendingFilesInput
+          files={pendingFiles}
+          onChange={setPendingFiles}
+          label="Receipt photos / files"
+          hint="Attach receipts now or upload later. Max 10 MB each."
+        />
+      )}
 
       <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
         <Link
