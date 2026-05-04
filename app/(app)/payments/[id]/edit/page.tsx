@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import PaymentForm from "@/components/forms/PaymentForm";
 import { Skeleton } from "@/components/ui/Skeleton";
+import DocumentUpload from "@/components/DocumentUpload";
 
 export default function EditPaymentPage({
   params,
@@ -51,21 +52,27 @@ export default function EditPaymentPage({
           <Skeleton className="h-9 w-full" />
         </div>
       ) : (
-        <Suspense fallback={null}>
-          <PaymentForm
-            mode="edit"
-            paymentId={id}
-            initial={{
-              lease_id: payment.lease_id,
-              payment_date: payment.payment_date,
-              for_month: payment.for_month,
-              amount: payment.amount,
-              payment_method: payment.payment_method || "bank_transfer",
-              reference_number: payment.reference_number || "",
-              notes: payment.notes || "",
-            }}
-          />
-        </Suspense>
+        <>
+          <Suspense fallback={null}>
+            <PaymentForm
+              mode="edit"
+              paymentId={id}
+              initial={{
+                lease_id: payment.lease_id,
+                payment_date: payment.payment_date,
+                for_month: payment.for_month,
+                amount: payment.amount,
+                payment_method: payment.payment_method || "bank_transfer",
+                reference_number: payment.reference_number || "",
+                notes: payment.notes || "",
+              }}
+            />
+          </Suspense>
+
+          <div className="mt-3">
+            <DocumentUpload paymentId={id} />
+          </div>
+        </>
       )}
     </div>
   );

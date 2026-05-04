@@ -23,6 +23,8 @@ type Props = {
   tenantId?: string;
   leaseId?: string;
   expenseId?: string;
+  paymentId?: string;
+  compact?: boolean;
 };
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -42,9 +44,16 @@ export default function DocumentUpload(props: Props) {
       ? "tenant_id"
       : props.leaseId
         ? "lease_id"
-        : "expense_id";
+        : props.expenseId
+          ? "expense_id"
+          : "payment_id";
   const filterValue =
-    props.propertyId || props.tenantId || props.leaseId || props.expenseId || "";
+    props.propertyId ||
+    props.tenantId ||
+    props.leaseId ||
+    props.expenseId ||
+    props.paymentId ||
+    "";
 
   async function loadDocs() {
     const { data } = await supabase

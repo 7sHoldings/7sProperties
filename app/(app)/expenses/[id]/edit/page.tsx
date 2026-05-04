@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import ExpenseForm from "@/components/forms/ExpenseForm";
 import { Skeleton } from "@/components/ui/Skeleton";
+import DocumentUpload from "@/components/DocumentUpload";
 
 export default function EditExpensePage({
   params,
@@ -50,19 +51,25 @@ export default function EditExpensePage({
           </div>
         </div>
       ) : (
-        <ExpenseForm
-          mode="edit"
-          expenseId={id}
-          initial={{
-            property_id: expense.property_id,
-            expense_date: expense.expense_date,
-            amount: expense.amount,
-            category: expense.category,
-            description: expense.description,
-            vendor: expense.vendor || "",
-            notes: expense.notes || "",
-          }}
-        />
+        <>
+          <ExpenseForm
+            mode="edit"
+            expenseId={id}
+            initial={{
+              property_id: expense.property_id,
+              expense_date: expense.expense_date,
+              amount: expense.amount,
+              category: expense.category,
+              description: expense.description,
+              vendor: expense.vendor || "",
+              notes: expense.notes || "",
+            }}
+          />
+
+          <div className="mt-3">
+            <DocumentUpload expenseId={id} />
+          </div>
+        </>
       )}
     </div>
   );

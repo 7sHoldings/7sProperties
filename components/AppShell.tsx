@@ -19,6 +19,7 @@ import {
   Wallet,
   Repeat,
   Car,
+  FolderOpen,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/mileage", label: "Mileage", icon: Car },
   { href: "/maintenance", label: "Maintenance", icon: Wrench },
   { href: "/distributions", label: "Profit taken out", icon: Wallet },
+  { href: "/documents", label: "Documents", icon: FolderOpen },
   { href: "/reports", label: "Reports", icon: FileText },
 ];
 
