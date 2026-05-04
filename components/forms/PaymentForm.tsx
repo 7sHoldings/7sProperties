@@ -81,21 +81,27 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
     };
 
     if (mode === "create") {
-      const { error } = await supabase.from("payments").insert({ owner_id: user.id, ...payload });
+      const { data: created, error } = await supabase
+        .from("payments")
+        .insert({ owner_id: user.id, ...payload })
+        .select()
+        .single();
       if (error) {
         toast.error(error.message);
         return;
       }
-      toast.success("Payment recorded");
-    } else {
-      const { error } = await supabase.from("payments").update(payload).eq("id", paymentId!);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      toast.success("Payment updated");
+      toast.success("Payment recorded — upload receipts below");
+      router.push(`/payments/${created.id}/edit`);
+      router.refresh();
+      return;
     }
 
+    const { error } = await supabase.from("payments").update(payload).eq("id", paymentId!);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Payment updated");
     router.push("/payments");
     router.refresh();
   }

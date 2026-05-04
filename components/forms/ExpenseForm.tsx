@@ -86,12 +86,19 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
     };
 
     if (mode === "create") {
-      const { error } = await supabase.from("expenses").insert({ owner_id: user.id, ...payload });
+      const { data: created, error } = await supabase
+        .from("expenses")
+        .insert({ owner_id: user.id, ...payload })
+        .select()
+        .single();
       if (error) {
         toast.error(error.message);
         return;
       }
-      toast.success("Expense added");
+      toast.success("Expense added — upload receipts below");
+      router.push(`/expenses/${created.id}/edit`);
+      router.refresh();
+      return;
     } else {
       const { error } = await supabase.from("expenses").update(payload).eq("id", expenseId!);
       if (error) {
@@ -99,10 +106,9 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
         return;
       }
       toast.success("Expense updated");
+      router.push("/expenses");
+      router.refresh();
     }
-
-    router.push("/expenses");
-    router.refresh();
   }
 
   return (
