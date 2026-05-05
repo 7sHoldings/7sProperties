@@ -263,6 +263,59 @@ export const depositTxSchema = z.object({
 export type DepositTxValues = z.input<typeof depositTxSchema>;
 export type DepositTxInput = z.output<typeof depositTxSchema>;
 
+export const constructionProjectSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  address: optionalStr,
+  city: optionalStr,
+  state: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.string().max(40).optional()
+  ),
+  zip: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.string().regex(zipRegex, "Use 12345 or 12345-6789").optional()
+  ),
+  property_type: optionalStr,
+  status: z.enum(["planning", "in_progress", "on_hold", "completed"]),
+  start_date: optionalStr,
+  expected_completion_date: optionalStr,
+  actual_completion_date: optionalStr,
+  budget: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().nonnegative("Cannot be negative").optional()
+  ),
+  bedrooms: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().int().nonnegative().max(50).optional()
+  ),
+  bathrooms: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().nonnegative().max(50).optional()
+  ),
+  square_feet: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().int().positive("Must be positive").max(1_000_000).optional()
+  ),
+  notes: optionalStr,
+});
+export type ConstructionProjectValues = z.input<typeof constructionProjectSchema>;
+export type ConstructionProjectInput = z.output<typeof constructionProjectSchema>;
+
+export const constructionExpenseSchema = z.object({
+  project_id: z.string().min(1, "Select a project"),
+  expense_date: z.string().min(1, "Date is required"),
+  amount: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number({ message: "Amount required" }).positive("Amount must be greater than 0")
+  ),
+  category: z.string().min(1, "Category required"),
+  description: z.string().trim().min(1, "Description required").max(200),
+  vendor: optionalStr,
+  notes: optionalStr,
+});
+export type ConstructionExpenseValues = z.input<typeof constructionExpenseSchema>;
+export type ConstructionExpenseInput = z.output<typeof constructionExpenseSchema>;
+
 export const leaseSchema = z.object({
   tenant_id: z.string().min(1, "Select a tenant"),
   unit_id: z.string().min(1, "Select a unit"),

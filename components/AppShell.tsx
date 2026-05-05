@@ -20,6 +20,7 @@ import {
   Repeat,
   Car,
   FolderOpen,
+  HardHat,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -29,6 +30,7 @@ import MobileBottomNav from "@/components/MobileBottomNav";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/properties", label: "Properties", icon: Building2 },
+  { href: "/construction", label: "Construction", icon: HardHat },
   { href: "/tenants", label: "Tenants", icon: Users },
   { href: "/payments", label: "Payments", icon: DollarSign },
   { href: "/expenses", label: "Expenses", icon: Receipt },
