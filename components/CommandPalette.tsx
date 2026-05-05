@@ -14,6 +14,7 @@ import {
   Repeat,
   Car,
   FolderOpen,
+  HardHat,
   Plus,
   Search,
 } from "lucide-react";
@@ -30,6 +31,7 @@ type Command = {
 const commands: Command[] = [
   { id: "nav-dash", label: "Dashboard", href: "/dashboard", icon: Home, group: "navigate" },
   { id: "nav-prop", label: "Properties", href: "/properties", icon: Building2, group: "navigate" },
+  { id: "nav-cnst", label: "Construction", href: "/construction", icon: HardHat, group: "navigate" },
   { id: "nav-ten", label: "Tenants", href: "/tenants", icon: Users, group: "navigate" },
   { id: "nav-pay", label: "Payments", href: "/payments", icon: DollarSign, group: "navigate" },
   { id: "nav-exp", label: "Expenses", href: "/expenses", icon: Receipt, group: "navigate" },
@@ -40,6 +42,7 @@ const commands: Command[] = [
   { id: "nav-doc", label: "Documents", href: "/documents", icon: FolderOpen, group: "navigate" },
   { id: "nav-rep", label: "Reports", href: "/reports", icon: FileText, group: "navigate" },
   { id: "new-prop", label: "Add property", hint: "Create new", href: "/properties/new", icon: Plus, group: "create" },
+  { id: "new-cnst", label: "New construction project", hint: "Create new", href: "/construction/new", icon: Plus, group: "create" },
   { id: "new-ten", label: "Add tenant", hint: "Create new", href: "/tenants/new", icon: Plus, group: "create" },
   { id: "new-pay", label: "Record payment", hint: "Create new", href: "/payments/new", icon: Plus, group: "create" },
   { id: "new-exp", label: "Add expense", hint: "Create new", href: "/expenses/new", icon: Plus, group: "create" },

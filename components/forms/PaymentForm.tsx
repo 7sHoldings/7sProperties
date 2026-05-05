@@ -35,6 +35,7 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
   const params = useSearchParams();
   const supabase = createClient();
   const [leases, setLeases] = useState<any[]>([]);
+  const [leasesLoaded, setLeasesLoaded] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const today = format(new Date(), "yyyy-MM-dd");
   const thisMonth = format(startOfMonth(new Date()), "yyyy-MM-dd");
@@ -61,7 +62,10 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
       .from("leases")
       .select("id, monthly_rent, status, tenants(full_name), units(unit_label, properties(name))")
       .order("status", { ascending: true })
-      .then(({ data }) => setLeases(data || []));
+      .then(({ data }) => {
+        setLeases(data || []);
+        setLeasesLoaded(true);
+      });
   }, []);
 
   async function onSubmit(values: PaymentInput) {
@@ -116,6 +120,32 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
     toast.success("Payment updated");
     router.push("/payments");
     router.refresh();
+  }
+
+  if (mode === "create" && leasesLoaded && leases.length === 0) {
+    return (
+      <div className="bg-white border border-stone-200 rounded-xl p-6 text-center">
+        <h2 className="text-lg font-medium mb-2">No active leases yet</h2>
+        <p className="text-sm text-stone-600 mb-4">
+          You need a lease (a tenant connected to a unit) before you can record a rent payment.
+          Tenants and properties on their own aren&apos;t enough.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Link
+            href="/leases/new"
+            className="px-4 py-2 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+          >
+            + Create a lease
+          </Link>
+          <Link
+            href="/tenants"
+            className="px-4 py-2 text-sm border border-stone-200 rounded-md hover:bg-stone-50"
+          >
+            Go to tenants
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
