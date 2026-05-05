@@ -263,6 +263,31 @@ export const depositTxSchema = z.object({
 export type DepositTxValues = z.input<typeof depositTxSchema>;
 export type DepositTxInput = z.output<typeof depositTxSchema>;
 
+export const leaseSchema = z.object({
+  tenant_id: z.string().min(1, "Select a tenant"),
+  unit_id: z.string().min(1, "Select a unit"),
+  start_date: z.string().min(1, "Start date required"),
+  end_date: z.string().min(1, "End date required"),
+  monthly_rent: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number({ message: "Rent required" }).positive("Must be greater than 0")
+  ),
+  security_deposit: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().nonnegative().optional()
+  ),
+  rent_due_day: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 1 : Number(v)),
+    z.number().int().min(1, "1-31").max(31, "1-31")
+  ),
+  notes: optionalStr,
+}).refine(
+  (data) => new Date(data.end_date) >= new Date(data.start_date),
+  { message: "End date must be after start", path: ["end_date"] }
+);
+export type LeaseValues = z.input<typeof leaseSchema>;
+export type LeaseInput = z.output<typeof leaseSchema>;
+
 export const loginSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),

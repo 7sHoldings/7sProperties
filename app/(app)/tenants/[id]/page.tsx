@@ -105,8 +105,15 @@ export default async function TenantDetailPage({
             <h2 className="font-medium">Lease history</h2>
             {(() => {
               const activeLease = leases.find((l: any) => l.status === "active");
-              if (!activeLease) return null;
-              return <RenewLeaseButton lease={activeLease as any} />;
+              if (activeLease) return <RenewLeaseButton lease={activeLease as any} />;
+              return (
+                <Link
+                  href={`/leases/new?tenant_id=${tenant.id}`}
+                  className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+                >
+                  + Add lease
+                </Link>
+              );
             })()}
           </div>
           {leases.length === 0 ? (

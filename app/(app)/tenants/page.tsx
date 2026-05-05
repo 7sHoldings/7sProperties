@@ -16,12 +16,20 @@ export default async function TenantsPage() {
           <h1 className="text-2xl font-medium">Tenants</h1>
           <p className="text-sm text-stone-500">{(tenants || []).length} total</p>
         </div>
-        <Link
-          href="/tenants/new"
-          className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
-        >
-          + Add tenant
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/leases/new"
+            className="px-3 py-1.5 text-sm bg-white border border-stone-200 rounded-md hover:bg-stone-50"
+          >
+            + New lease
+          </Link>
+          <Link
+            href="/tenants/new"
+            className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+          >
+            + Add tenant
+          </Link>
+        </div>
       </div>
 
       <TenantsList tenants={tenants || []} />
