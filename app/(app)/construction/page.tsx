@@ -95,48 +95,63 @@ export default async function ConstructionPage() {
             const budget = Number(p.budget) || 0;
             const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
             return (
-              <Link
+              <div
                 key={p.id}
-                href={`/construction/${p.id}`}
-                className="bg-white border border-stone-200 rounded-xl p-4 hover:border-stone-300"
+                className="bg-white border border-stone-200 rounded-xl p-4 hover:border-stone-300 flex flex-col"
               >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-medium truncate">{p.name}</h3>
-                  <span
-                    className={`text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap ${
-                      STATUS_COLOR[p.status] || "bg-stone-100"
-                    }`}
-                  >
-                    {STATUS_LABEL[p.status] || p.status}
-                  </span>
-                </div>
-                {p.address && (
-                  <p className="text-xs text-stone-500 mb-3 truncate">{p.address}</p>
-                )}
-                <div className="text-sm flex justify-between mb-1">
-                  <span className="text-stone-500">Spent</span>
-                  <span className="font-medium">${spent.toLocaleString()}</span>
-                </div>
-                <div className="text-sm flex justify-between mb-2">
-                  <span className="text-stone-500">Budget</span>
-                  <span>{budget > 0 ? `$${budget.toLocaleString()}` : "—"}</span>
-                </div>
-                {budget > 0 && (
-                  <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${
-                        pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-teal-600"
+                <Link href={`/construction/${p.id}`} className="block flex-1">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="font-medium truncate">{p.name}</h3>
+                    <span
+                      className={`text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap ${
+                        STATUS_COLOR[p.status] || "bg-stone-100"
                       }`}
-                      style={{ width: `${pct}%` }}
-                    />
+                    >
+                      {STATUS_LABEL[p.status] || p.status}
+                    </span>
                   </div>
-                )}
-                {p.expected_completion_date && (
-                  <p className="text-[11px] text-stone-500 mt-3">
-                    Target: {format(new Date(p.expected_completion_date), "MMM d, yyyy")}
-                  </p>
-                )}
-              </Link>
+                  {p.address && (
+                    <p className="text-xs text-stone-500 mb-3 truncate">{p.address}</p>
+                  )}
+                  <div className="text-sm flex justify-between mb-1">
+                    <span className="text-stone-500">Spent</span>
+                    <span className="font-medium">${spent.toLocaleString()}</span>
+                  </div>
+                  <div className="text-sm flex justify-between mb-2">
+                    <span className="text-stone-500">Budget</span>
+                    <span>{budget > 0 ? `$${budget.toLocaleString()}` : "—"}</span>
+                  </div>
+                  {budget > 0 && (
+                    <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${
+                          pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-teal-600"
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  )}
+                  {p.expected_completion_date && (
+                    <p className="text-[11px] text-stone-500 mt-3">
+                      Target: {format(new Date(p.expected_completion_date), "MMM d, yyyy")}
+                    </p>
+                  )}
+                </Link>
+                <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between">
+                  <Link
+                    href={`/construction/${p.id}#add-expense`}
+                    className="text-xs text-teal-700 hover:text-teal-800 font-medium"
+                  >
+                    + Log expense
+                  </Link>
+                  <Link
+                    href={`/construction/${p.id}`}
+                    className="text-xs text-stone-500 hover:text-stone-700"
+                  >
+                    View details →
+                  </Link>
+                </div>
+              </div>
             );
           })}
         </div>

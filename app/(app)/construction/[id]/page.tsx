@@ -135,16 +135,22 @@ export default async function ConstructionDetailPage({
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
-        <div className="lg:col-span-2 bg-white border border-stone-200 rounded-xl p-4">
+        <div
+          id="add-expense"
+          className="lg:col-span-2 bg-white border border-stone-200 rounded-xl p-4 scroll-mt-20"
+        >
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-medium">Build expenses</h2>
-            <ConstructionExpenseForm projectId={project.id} />
+            {list.length > 0 && <ConstructionExpenseForm projectId={project.id} />}
           </div>
           {list.length === 0 ? (
-            <p className="text-sm text-stone-500">
-              No expenses logged yet. Click &quot;Add expense&quot; to log lumber, labor, permits,
-              etc.
-            </p>
+            <div>
+              <p className="text-sm text-stone-500 mb-3">
+                No expenses logged yet. Add your first build expense below — lumber, labor,
+                permits, etc.
+              </p>
+              <ConstructionExpenseForm projectId={project.id} defaultOpen />
+            </div>
           ) : (
             <ul className="text-sm divide-y divide-stone-100">
               {list.map((e: any) => (

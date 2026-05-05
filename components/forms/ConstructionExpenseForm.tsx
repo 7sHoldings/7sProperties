@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -45,12 +45,19 @@ const CATEGORIES = [
 
 type Props = {
   projectId: string;
+  defaultOpen?: boolean;
 };
 
-export default function ConstructionExpenseForm({ projectId }: Props) {
+export default function ConstructionExpenseForm({ projectId, defaultOpen = false }: Props) {
   const router = useRouter();
   const supabase = createClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#add-expense") {
+      setOpen(true);
+    }
+  }, []);
 
   const {
     register,
