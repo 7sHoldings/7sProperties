@@ -104,7 +104,7 @@ export const paymentSchema = z.object({
   for_month: z
     .string()
     .min(1, "Month is required")
-    .refine((d) => /^\d{4}-\d{2}-01$/.test(d), "Use the 1st of the month"),
+    .refine((d) => /^\d{4}-\d{2}$/.test(d), "Pick a month"),
   amount: z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
     z.number({ message: "Amount required" }).positive("Amount must be greater than 0")
@@ -174,7 +174,7 @@ export type DistributionValues = z.input<typeof distributionSchema>;
 export type DistributionInput = z.output<typeof distributionSchema>;
 
 export const recurringExpenseSchema = z.object({
-  property_id: z.string().min(1, "Select a property"),
+  property_id: optionalStr,
   category: z.string().min(1, "Category required"),
   description: z.string().trim().min(1, "Description required").max(200),
   vendor: optionalStr,

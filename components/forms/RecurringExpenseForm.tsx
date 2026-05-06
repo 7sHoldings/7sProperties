@@ -80,7 +80,7 @@ export default function RecurringExpenseForm({ mode, recurringId, initial }: Pro
     if (!user) return;
 
     const payload = {
-      property_id: values.property_id,
+      property_id: values.property_id || null,
       category: values.category,
       description: values.description,
       vendor: values.vendor || null,
@@ -118,12 +118,12 @@ export default function RecurringExpenseForm({ mode, recurringId, initial }: Pro
       noValidate
     >
       <Select
-        label="Property"
-        required
+        label="Property (optional)"
+        hint="Leave blank if this expense isn't tied to one property"
         error={errors.property_id?.message}
         {...register("property_id")}
       >
-        <option value="">Select property</option>
+        <option value="">No specific property (general / all)</option>
         {properties.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}

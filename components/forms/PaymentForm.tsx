@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { format, startOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { paymentSchema, type PaymentInput, type PaymentValues } from "@/lib/schemas";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
@@ -38,7 +38,7 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
   const [leasesLoaded, setLeasesLoaded] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const today = format(new Date(), "yyyy-MM-dd");
-  const thisMonth = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const thisMonth = format(new Date(), "yyyy-MM");
 
   const {
     register,
@@ -49,7 +49,7 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
     defaultValues: {
       lease_id: initial?.lease_id ?? params?.get("lease_id") ?? "",
       payment_date: initial?.payment_date ?? today,
-      for_month: initial?.for_month ?? thisMonth,
+      for_month: initial?.for_month ? String(initial.for_month).slice(0, 7) : thisMonth,
       amount: initial?.amount,
       payment_method: initial?.payment_method ?? "bank_transfer",
       reference_number: initial?.reference_number ?? "",
@@ -80,7 +80,7 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
     const payload = {
       lease_id: values.lease_id,
       payment_date: values.payment_date,
-      for_month: values.for_month,
+      for_month: `${values.for_month}-01`,
       amount: values.amount,
       payment_method: values.payment_method || null,
       reference_number: values.reference_number || null,
@@ -175,9 +175,9 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
         />
         <Input
           label="For month"
-          type="date"
+          type="month"
           required
-          hint="Use the 1st of the month being paid"
+          hint="Which rent month this payment covers"
           error={errors.for_month?.message}
           {...register("for_month")}
         />
