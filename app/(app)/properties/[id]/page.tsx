@@ -7,6 +7,7 @@ import DocumentUpload from "@/components/DocumentUpload";
 import PropertyCashflow from "@/components/PropertyCashflow";
 import MortgageSection from "@/components/MortgageSection";
 import PropertyPhotoGallery from "@/components/PropertyPhotoGallery";
+import { parseDbDate } from "@/lib/dates";
 
 export default async function PropertyDetailPage({
   params,
@@ -127,10 +128,10 @@ export default async function PropertyDetailPage({
         const occupiedDays = Math.min(
           ytdDays,
           leases
-            .filter((l: any) => new Date(l.start_date) <= today && new Date(l.end_date) >= yearStart)
+            .filter((l: any) => parseDbDate(l.start_date) <= today && parseDbDate(l.end_date) >= yearStart)
             .reduce((sum: number, l: any) => {
-              const ls = dMax([new Date(l.start_date), yearStart]);
-              const le = dMin([new Date(l.end_date), today]);
+              const ls = dMax([parseDbDate(l.start_date), yearStart]);
+              const le = dMin([parseDbDate(l.end_date), today]);
               return sum + Math.max(0, differenceInCalendarDays(le, ls) + 1);
             }, 0)
         );
@@ -187,7 +188,7 @@ export default async function PropertyDetailPage({
                       {l.tenants?.full_name}
                     </Link>
                     <div className="text-xs text-stone-500">
-                      {format(new Date(l.start_date), "MMM yyyy")} – {format(new Date(l.end_date), "MMM yyyy")} · {l.status}
+                      {format(parseDbDate(l.start_date), "MMM yyyy")} – {format(parseDbDate(l.end_date), "MMM yyyy")} · {l.status}
                     </div>
                   </div>
                   <span>${Number(l.monthly_rent).toLocaleString()}</span>

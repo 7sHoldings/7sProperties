@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
+import { parseDbDate } from "@/lib/dates";
 
 const STATUS_LABEL: Record<string, string> = {
   planning: "Planning",
@@ -133,7 +134,7 @@ export default async function ConstructionPage() {
                   )}
                   {p.expected_completion_date && (
                     <p className="text-[11px] text-stone-500 mt-3">
-                      Target: {format(new Date(p.expected_completion_date), "MMM d, yyyy")}
+                      Target: {format(parseDbDate(p.expected_completion_date), "MMM d, yyyy")}
                     </p>
                   )}
                 </Link>

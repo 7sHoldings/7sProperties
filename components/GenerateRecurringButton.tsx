@@ -7,6 +7,7 @@ import { format, startOfMonth, addMonths } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import Button from "@/components/ui/Button";
 import { Zap } from "lucide-react";
+import { parseDbDate } from "@/lib/dates";
 
 /**
  * Generates expenses for any recurring template that's due in a given month.
@@ -46,8 +47,8 @@ export default function GenerateRecurringButton() {
 
     for (const t of templates as any[]) {
       // Determine due months between (last_generated_for + 1) and now
-      const start = new Date(t.start_date);
-      const end = t.end_date ? new Date(t.end_date) : null;
+      const start = parseDbDate(t.start_date);
+      const end = t.end_date ? parseDbDate(t.end_date) : null;
       const lastGen = t.last_generated_for ? new Date(t.last_generated_for) : null;
 
       // Step from start (or month after lastGen) up to current month

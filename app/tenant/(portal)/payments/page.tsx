@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import EmptyState from "@/components/ui/EmptyState";
 import { DollarSign } from "lucide-react";
+import { parseDbDate } from "@/lib/dates";
 
 export default async function TenantPaymentsPage() {
   const supabase = await createClient();
@@ -73,10 +74,10 @@ export default async function TenantPaymentsPage() {
                 {list.map((p: any) => (
                   <tr key={p.id} className="border-t border-stone-100">
                     <td className="px-4 py-3 text-stone-600">
-                      {format(new Date(p.payment_date), "MMM d, yyyy")}
+                      {format(parseDbDate(p.payment_date), "MMM d, yyyy")}
                     </td>
                     <td className="px-4 py-3 text-stone-600">
-                      {format(new Date(p.for_month), "MMM yyyy")}
+                      {format(parseDbDate(p.for_month), "MMM yyyy")}
                     </td>
                     <td className="px-4 py-3">{p.leases?.units?.properties?.name || "—"}</td>
                     <td className="px-4 py-3 text-stone-600 capitalize">
@@ -98,10 +99,10 @@ export default async function TenantPaymentsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="font-medium">
-                      {format(new Date(p.payment_date), "MMM d, yyyy")}
+                      {format(parseDbDate(p.payment_date), "MMM d, yyyy")}
                     </div>
                     <div className="text-xs text-stone-500">
-                      For {format(new Date(p.for_month), "MMM yyyy")} · {(p.payment_method || "—").replace("_", " ")}
+                      For {format(parseDbDate(p.for_month), "MMM yyyy")} · {(p.payment_method || "—").replace("_", " ")}
                     </div>
                   </div>
                   <div className="text-green-700 font-medium">

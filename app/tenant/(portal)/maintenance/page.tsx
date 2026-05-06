@@ -4,6 +4,7 @@ import { Wrench } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EmptyState from "@/components/ui/EmptyState";
+import { parseDbDate } from "@/lib/dates";
 
 const priorityTone: Record<string, "red" | "amber" | "stone"> = {
   urgent: "red",
@@ -87,8 +88,8 @@ export default async function TenantMaintenancePage() {
                 <p className="text-sm text-stone-600 mb-2">{r.description}</p>
               )}
               <div className="text-xs text-stone-500">
-                Submitted {format(new Date(r.reported_date), "MMM d, yyyy")}
-                {r.completed_date && ` · Completed ${format(new Date(r.completed_date), "MMM d, yyyy")}`}
+                Submitted {format(parseDbDate(r.reported_date), "MMM d, yyyy")}
+                {r.completed_date && ` · Completed ${format(parseDbDate(r.completed_date), "MMM d, yyyy")}`}
                 {r.properties?.name && ` · ${r.properties.name}`}
               </div>
             </div>

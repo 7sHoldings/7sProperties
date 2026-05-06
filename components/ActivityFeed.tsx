@@ -2,6 +2,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { DollarSign, Receipt, Wrench, Users, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { parseDbDate } from "@/lib/dates";
 
 type Activity = {
   id: string;
@@ -68,7 +69,7 @@ export default async function ActivityFeed() {
       type: "payment",
       date: p.created_at,
       title: `Payment from ${p.leases?.tenants?.full_name || "tenant"}`,
-      subtitle: format(new Date(p.payment_date), "MMM d, yyyy"),
+      subtitle: format(parseDbDate(p.payment_date), "MMM d, yyyy"),
       href: `/payments/${p.id}/edit`,
       amount: Number(p.amount),
     });

@@ -12,6 +12,7 @@ import { lateFeeSchema, type LateFeeInput, type LateFeeValues } from "@/lib/sche
 import { Input } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { parseDbDate } from "@/lib/dates";
 
 type Lease = {
   id: string;
@@ -71,9 +72,9 @@ export default function TenantLedger({ lease }: Props) {
   }, [lease.id]);
 
   const monthlyLedger = useMemo(() => {
-    const start = startOfMonth(new Date(lease.start_date));
+    const start = startOfMonth(parseDbDate(lease.start_date));
     const today = startOfMonth(new Date());
-    const end = startOfMonth(new Date(lease.end_date));
+    const end = startOfMonth(parseDbDate(lease.end_date));
     const stop = isBefore(today, end) ? today : end;
 
     const rows: { key: string; label: string; expected: number; paid: number; balance: number }[] = [];
@@ -260,7 +261,7 @@ export default function TenantLedger({ lease }: Props) {
               {charges.map((c) => (
                 <tr key={c.id} className="border-t border-stone-100">
                   <td className="px-4 py-2.5 text-stone-600 w-32">
-                    {format(new Date(c.charge_date), "MMM d, yyyy")}
+                    {format(parseDbDate(c.charge_date), "MMM d, yyyy")}
                   </td>
                   <td className="px-4 py-2.5">{c.description}</td>
                   <td className="px-4 py-2.5 text-right text-amber-700 font-medium">

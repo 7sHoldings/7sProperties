@@ -5,6 +5,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import ListControls from "@/components/ui/ListControls";
 import DeleteButton from "@/components/DeleteButton";
+import { parseDbDate } from "@/lib/dates";
 
 const SORTS = [
   { value: "date_desc", label: "Date (newest)" },
@@ -54,7 +55,7 @@ export default function PaymentsList({ payments, properties }: Props) {
 
   const years = useMemo(() => {
     const set = new Set<string>();
-    payments.forEach((p) => set.add(new Date(p.payment_date).getFullYear().toString()));
+    payments.forEach((p) => set.add(parseDbDate(p.payment_date).getFullYear().toString()));
     const arr = Array.from(set).sort((a, b) => Number(b) - Number(a));
     return [{ value: "all", label: "All years" }, ...arr.map((y) => ({ value: y, label: y }))];
   }, [payments]);
@@ -77,23 +78,23 @@ export default function PaymentsList({ payments, properties }: Props) {
       list = list.filter((p) => p.payment_method === method);
     }
     if (year !== "all") {
-      list = list.filter((p) => new Date(p.payment_date).getFullYear().toString() === year);
+      list = list.filter((p) => parseDbDate(p.payment_date).getFullYear().toString() === year);
     }
     if (month !== "all") {
-      list = list.filter((p) => new Date(p.payment_date).getMonth().toString() === month);
+      list = list.filter((p) => parseDbDate(p.payment_date).getMonth().toString() === month);
     }
 
     list.sort((a, b) => {
       switch (sort) {
         case "date_asc":
-          return new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime();
+          return parseDbDate(a.payment_date).getTime() - parseDbDate(b.payment_date).getTime();
         case "amount_high":
           return Number(b.amount) - Number(a.amount);
         case "amount_low":
           return Number(a.amount) - Number(b.amount);
         case "date_desc":
         default:
-          return new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime();
+          return parseDbDate(b.payment_date).getTime() - parseDbDate(a.payment_date).getTime();
       }
     });
     return list;
@@ -146,12 +147,12 @@ export default function PaymentsList({ payments, properties }: Props) {
                 {filtered.map((p: any) => (
                   <tr key={p.id} className="border-t border-stone-100">
                     <td className="px-4 py-3 text-stone-600">
-                      {format(new Date(p.payment_date), "MMM d, yyyy")}
+                      {format(parseDbDate(p.payment_date), "MMM d, yyyy")}
                     </td>
                     <td className="px-4 py-3">{p.leases?.tenants?.full_name || "—"}</td>
                     <td className="px-4 py-3">{p.leases?.units?.properties?.name || "—"}</td>
                     <td className="px-4 py-3 text-stone-600">
-                      {format(new Date(p.for_month), "MMM yyyy")}
+                      {format(parseDbDate(p.for_month), "MMM yyyy")}
                     </td>
                     <td className="px-4 py-3 text-stone-600 capitalize">
                       {(p.payment_method || "—").replace("_", " ")}
@@ -196,8 +197,8 @@ export default function PaymentsList({ payments, properties }: Props) {
                       {p.leases?.units?.properties?.name}
                     </div>
                     <div className="text-xs text-stone-500 mt-1">
-                      {format(new Date(p.payment_date), "MMM d, yyyy")} · for{" "}
-                      {format(new Date(p.for_month), "MMM yyyy")}
+                      {format(parseDbDate(p.payment_date), "MMM d, yyyy")} · for{" "}
+                      {format(parseDbDate(p.for_month), "MMM yyyy")}
                     </div>
                   </div>
                   <div className="text-right ml-3">

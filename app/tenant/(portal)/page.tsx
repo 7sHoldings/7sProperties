@@ -3,6 +3,7 @@ import { format, startOfMonth, endOfMonth, differenceInCalendarDays } from "date
 import { AlertTriangle, Building2, Calendar, DollarSign, Wrench } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { parseDbDate } from "@/lib/dates";
 
 export default async function TenantDashboard() {
   const supabase = await createClient();
@@ -58,7 +59,7 @@ export default async function TenantDashboard() {
   const outstanding = Math.max(0, expectedRent - paidThisMonth);
   const dueDay = activeLease?.rent_due_day ?? 1;
   const daysToLeaseEnd = activeLease
-    ? differenceInCalendarDays(new Date(activeLease.end_date), new Date())
+    ? differenceInCalendarDays(parseDbDate(activeLease.end_date), new Date())
     : null;
 
   return (
@@ -150,11 +151,11 @@ export default async function TenantDashboard() {
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-stone-100">
                 <div>
                   <div className="text-stone-500 text-xs">Start date</div>
-                  <div>{format(new Date(activeLease.start_date), "MMM d, yyyy")}</div>
+                  <div>{format(parseDbDate(activeLease.start_date), "MMM d, yyyy")}</div>
                 </div>
                 <div>
                   <div className="text-stone-500 text-xs">End date</div>
-                  <div>{format(new Date(activeLease.end_date), "MMM d, yyyy")}</div>
+                  <div>{format(parseDbDate(activeLease.end_date), "MMM d, yyyy")}</div>
                 </div>
               </div>
             </div>

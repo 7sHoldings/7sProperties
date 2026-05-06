@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { depositTxSchema, type DepositTxInput, type DepositTxValues } from "@/lib/schemas";
 import { Input, Select } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
+import { parseDbDate } from "@/lib/dates";
 
 type Props = {
   leaseId: string;
@@ -178,7 +179,7 @@ export default function DepositLedger({ leaseId, initialDeposit }: Props) {
             {txs.map((t) => (
               <tr key={t.id} className="border-t border-stone-100">
                 <td className="px-4 py-2.5 text-stone-600 w-32">
-                  {format(new Date(t.transaction_date), "MMM d, yyyy")}
+                  {format(parseDbDate(t.transaction_date), "MMM d, yyyy")}
                 </td>
                 <td className="px-4 py-2.5 capitalize w-24">
                   <span

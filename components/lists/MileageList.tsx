@@ -7,6 +7,7 @@ import { Car } from "lucide-react";
 import ListControls from "@/components/ui/ListControls";
 import EmptyState from "@/components/ui/EmptyState";
 import DeleteButton from "@/components/DeleteButton";
+import { parseDbDate } from "@/lib/dates";
 
 const SORTS = [
   { value: "date_desc", label: "Date (newest)" },
@@ -34,7 +35,7 @@ export default function MileageList({ logs, properties }: Props) {
 
   const years = useMemo(() => {
     const set = new Set<string>();
-    logs.forEach((l) => set.add(new Date(l.trip_date).getFullYear().toString()));
+    logs.forEach((l) => set.add(parseDbDate(l.trip_date).getFullYear().toString()));
     return [
       { value: "all", label: "All years" },
       ...Array.from(set).sort((a, b) => Number(b) - Number(a)).map((y) => ({ value: y, label: y })),
@@ -51,17 +52,17 @@ export default function MileageList({ logs, properties }: Props) {
     }
     if (propertyId === "none") list = list.filter((l) => !l.property_id);
     else if (propertyId !== "all") list = list.filter((l) => l.property_id === propertyId);
-    if (year !== "all") list = list.filter((l) => new Date(l.trip_date).getFullYear().toString() === year);
-    if (month !== "all") list = list.filter((l) => new Date(l.trip_date).getMonth().toString() === month);
+    if (year !== "all") list = list.filter((l) => parseDbDate(l.trip_date).getFullYear().toString() === year);
+    if (month !== "all") list = list.filter((l) => parseDbDate(l.trip_date).getMonth().toString() === month);
 
     list.sort((a, b) => {
       switch (sort) {
         case "date_asc":
-          return new Date(a.trip_date).getTime() - new Date(b.trip_date).getTime();
+          return parseDbDate(a.trip_date).getTime() - parseDbDate(b.trip_date).getTime();
         case "miles_high":
           return Number(b.miles) - Number(a.miles);
         default:
-          return new Date(b.trip_date).getTime() - new Date(a.trip_date).getTime();
+          return parseDbDate(b.trip_date).getTime() - parseDbDate(a.trip_date).getTime();
       }
     });
     return list;
@@ -138,7 +139,7 @@ export default function MileageList({ logs, properties }: Props) {
                 {filtered.map((l: any) => (
                   <tr key={l.id} className="border-t border-stone-100">
                     <td className="px-4 py-3 text-stone-600">
-                      {format(new Date(l.trip_date), "MMM d, yyyy")}
+                      {format(parseDbDate(l.trip_date), "MMM d, yyyy")}
                     </td>
                     <td className="px-4 py-3">{l.purpose}</td>
                     <td className="px-4 py-3 text-stone-600">{l.properties?.name || "—"}</td>
@@ -170,7 +171,7 @@ export default function MileageList({ logs, properties }: Props) {
                       {l.properties?.name || "General"}
                     </div>
                     <div className="text-xs text-stone-500 mt-1">
-                      {format(new Date(l.trip_date), "MMM d, yyyy")}
+                      {format(parseDbDate(l.trip_date), "MMM d, yyyy")}
                     </div>
                   </div>
                   <div className="text-right ml-3">

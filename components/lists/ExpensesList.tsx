@@ -7,6 +7,7 @@ import { Receipt } from "lucide-react";
 import ListControls from "@/components/ui/ListControls";
 import EmptyState from "@/components/ui/EmptyState";
 import DeleteButton from "@/components/DeleteButton";
+import { parseDbDate } from "@/lib/dates";
 
 const SORTS = [
   { value: "date_desc", label: "Date (newest)" },
@@ -56,7 +57,7 @@ export default function ExpensesList({ expenses, properties }: Props) {
 
   const years = useMemo(() => {
     const set = new Set<string>();
-    expenses.forEach((e) => set.add(new Date(e.expense_date).getFullYear().toString()));
+    expenses.forEach((e) => set.add(parseDbDate(e.expense_date).getFullYear().toString()));
     const arr = Array.from(set).sort((a, b) => Number(b) - Number(a));
     return [{ value: "all", label: "All years" }, ...arr.map((y) => ({ value: y, label: y }))];
   }, [expenses]);
@@ -74,19 +75,19 @@ export default function ExpensesList({ expenses, properties }: Props) {
     }
     if (propertyId !== "all") list = list.filter((e) => e.property_id === propertyId);
     if (category !== "all") list = list.filter((e) => e.category === category);
-    if (year !== "all") list = list.filter((e) => new Date(e.expense_date).getFullYear().toString() === year);
-    if (month !== "all") list = list.filter((e) => new Date(e.expense_date).getMonth().toString() === month);
+    if (year !== "all") list = list.filter((e) => parseDbDate(e.expense_date).getFullYear().toString() === year);
+    if (month !== "all") list = list.filter((e) => parseDbDate(e.expense_date).getMonth().toString() === month);
 
     list.sort((a, b) => {
       switch (sort) {
         case "date_asc":
-          return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
+          return parseDbDate(a.expense_date).getTime() - parseDbDate(b.expense_date).getTime();
         case "amount_high":
           return Number(b.amount) - Number(a.amount);
         case "amount_low":
           return Number(a.amount) - Number(b.amount);
         default:
-          return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
+          return parseDbDate(b.expense_date).getTime() - parseDbDate(a.expense_date).getTime();
       }
     });
     return list;
@@ -146,7 +147,7 @@ export default function ExpensesList({ expenses, properties }: Props) {
                 {filtered.map((e: any) => (
                   <tr key={e.id} className="border-t border-stone-100">
                     <td className="px-4 py-3 text-stone-600">
-                      {format(new Date(e.expense_date), "MMM d, yyyy")}
+                      {format(parseDbDate(e.expense_date), "MMM d, yyyy")}
                     </td>
                     <td className="px-4 py-3">{e.properties?.name}</td>
                     <td className="px-4 py-3">{e.description}</td>
@@ -190,7 +191,7 @@ export default function ExpensesList({ expenses, properties }: Props) {
                     <div className="font-medium truncate">{e.description}</div>
                     <div className="text-xs text-stone-500 truncate">{e.properties?.name}</div>
                     <div className="text-xs text-stone-500 mt-1 capitalize">
-                      {format(new Date(e.expense_date), "MMM d, yyyy")} ·{" "}
+                      {format(parseDbDate(e.expense_date), "MMM d, yyyy")} ·{" "}
                       {e.category.replace("_", " ")}
                     </div>
                   </div>

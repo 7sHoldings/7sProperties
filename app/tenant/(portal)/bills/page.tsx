@@ -2,6 +2,7 @@ import { format, startOfMonth, addMonths, isBefore } from "date-fns";
 import { Calendar, Check, AlertCircle, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { parseDbDate } from "@/lib/dates";
 
 export default async function TenantBillsPage() {
   const supabase = await createClient();
@@ -51,7 +52,7 @@ export default async function TenantBillsPage() {
   const rows: Row[] = [];
 
   if (activeLease) {
-    const start = startOfMonth(new Date(activeLease.start_date));
+    const start = startOfMonth(parseDbDate(activeLease.start_date));
     const stop = startOfMonth(addMonths(today, 3));
     const dueDay = activeLease.rent_due_day || 1;
     const rent = Number(activeLease.monthly_rent);

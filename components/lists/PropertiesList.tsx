@@ -36,6 +36,7 @@ const TYPE_FILTER = [
   { value: "condo", label: "Condo" },
   { value: "apartment", label: "Apartment" },
   { value: "townhouse", label: "Townhouse" },
+  { value: "lot", label: "Lot / Land" },
   { value: "other", label: "Other" },
 ];
 

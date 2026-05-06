@@ -8,6 +8,7 @@ import {
   startOfYear,
   differenceInCalendarDays,
 } from "date-fns";
+import { parseDbDate } from "@/lib/dates";
 import { AlertTriangle, CheckCircle2, Circle } from "lucide-react";
 import LeaseAlerts from "@/components/LeaseAlerts";
 import ActivityFeed from "@/components/ActivityFeed";
@@ -137,7 +138,7 @@ export default async function DashboardPage() {
 
   const today = new Date();
   activeLeases.forEach((l: any) => {
-    const days = differenceInCalendarDays(new Date(l.end_date), today);
+    const days = differenceInCalendarDays(parseDbDate(l.end_date), today);
     if (days >= 0 && days <= 60) {
       alerts.push({
         type: "warn",

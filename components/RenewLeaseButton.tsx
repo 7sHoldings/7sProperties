@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
+import { parseDbDate } from "@/lib/dates";
 
 type Lease = {
   id: string;
@@ -44,8 +45,8 @@ export default function RenewLeaseButton({ lease }: { lease: Lease }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  const startDate = format(new Date(lease.end_date), "yyyy-MM-dd");
-  const endDate = format(addYears(new Date(lease.end_date), 1), "yyyy-MM-dd");
+  const startDate = format(parseDbDate(lease.end_date), "yyyy-MM-dd");
+  const endDate = format(addYears(parseDbDate(lease.end_date), 1), "yyyy-MM-dd");
 
   const {
     register,

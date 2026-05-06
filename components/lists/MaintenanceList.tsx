@@ -8,6 +8,7 @@ import ListControls from "@/components/ui/ListControls";
 import EmptyState from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
 import DeleteButton from "@/components/DeleteButton";
+import { parseDbDate } from "@/lib/dates";
 
 const SORTS = [
   { value: "date_desc", label: "Date (newest)" },
@@ -78,13 +79,13 @@ export default function MaintenanceList({ requests, properties }: Props) {
     list.sort((a, b) => {
       switch (sort) {
         case "date_asc":
-          return new Date(a.reported_date).getTime() - new Date(b.reported_date).getTime();
+          return parseDbDate(a.reported_date).getTime() - parseDbDate(b.reported_date).getTime();
         case "priority":
           return (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0);
         case "cost_high":
           return Number(b.cost || 0) - Number(a.cost || 0);
         default:
-          return new Date(b.reported_date).getTime() - new Date(a.reported_date).getTime();
+          return parseDbDate(b.reported_date).getTime() - parseDbDate(a.reported_date).getTime();
       }
     });
     return list;
@@ -142,7 +143,7 @@ export default function MaintenanceList({ requests, properties }: Props) {
                 {filtered.map((r: any) => (
                   <tr key={r.id} className="border-t border-stone-100">
                     <td className="px-4 py-3 text-stone-600">
-                      {format(new Date(r.reported_date), "MMM d, yyyy")}
+                      {format(parseDbDate(r.reported_date), "MMM d, yyyy")}
                     </td>
                     <td className="px-4 py-3">{r.properties?.name}</td>
                     <td className="px-4 py-3">
@@ -217,7 +218,7 @@ export default function MaintenanceList({ requests, properties }: Props) {
                       {r.cost ? `$${Number(r.cost).toLocaleString()}` : "—"}
                     </div>
                     <div className="text-xs text-stone-500">
-                      {format(new Date(r.reported_date), "MMM d")}
+                      {format(parseDbDate(r.reported_date), "MMM d")}
                     </div>
                     <div className="flex gap-3 mt-2 justify-end">
                       <Link

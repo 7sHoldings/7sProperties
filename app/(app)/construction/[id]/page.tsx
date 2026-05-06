@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import DeleteButton from "@/components/DeleteButton";
 import ConstructionExpenseForm from "@/components/forms/ConstructionExpenseForm";
 import ConvertToPropertyButton from "@/components/ConvertToPropertyButton";
+import { parseDbDate } from "@/lib/dates";
 
 const STATUS_LABEL: Record<string, string> = {
   planning: "Planning",
@@ -159,7 +160,7 @@ export default async function ConstructionDetailPage({
                     <div className="min-w-0">
                       <div className="font-medium truncate">{e.description}</div>
                       <div className="text-xs text-stone-500">
-                        {format(new Date(e.expense_date), "MMM d, yyyy")} ·{" "}
+                        {format(parseDbDate(e.expense_date), "MMM d, yyyy")} ·{" "}
                         {(e.category || "other").replace(/_/g, " ")}
                         {e.vendor ? ` · ${e.vendor}` : ""}
                       </div>
@@ -213,13 +214,13 @@ export default async function ConstructionDetailPage({
           <Field label="Square feet" value={project.square_feet?.toLocaleString() || "—"} />
           <Field
             label="Started"
-            value={project.start_date ? format(new Date(project.start_date), "MMM d, yyyy") : "—"}
+            value={project.start_date ? format(parseDbDate(project.start_date), "MMM d, yyyy") : "—"}
           />
           <Field
             label="Expected completion"
             value={
               project.expected_completion_date
-                ? format(new Date(project.expected_completion_date), "MMM d, yyyy")
+                ? format(parseDbDate(project.expected_completion_date), "MMM d, yyyy")
                 : "—"
             }
           />
@@ -227,7 +228,7 @@ export default async function ConstructionDetailPage({
             label="Actual completion"
             value={
               project.actual_completion_date
-                ? format(new Date(project.actual_completion_date), "MMM d, yyyy")
+                ? format(parseDbDate(project.actual_completion_date), "MMM d, yyyy")
                 : "—"
             }
           />

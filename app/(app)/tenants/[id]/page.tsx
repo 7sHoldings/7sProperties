@@ -8,6 +8,7 @@ import InviteTenantButton from "@/components/InviteTenantButton";
 import TenantLedger from "@/components/TenantLedger";
 import DepositLedger from "@/components/DepositLedger";
 import RenewLeaseButton from "@/components/RenewLeaseButton";
+import { parseDbDate } from "@/lib/dates";
 
 export default async function TenantDetailPage({
   params,
@@ -130,7 +131,7 @@ export default async function TenantDetailPage({
                     <span className="text-stone-600">${Number(l.monthly_rent).toLocaleString()}/mo</span>
                   </div>
                   <div className="text-xs text-stone-500 mt-0.5">
-                    {format(new Date(l.start_date), "MMM d, yyyy")} – {format(new Date(l.end_date), "MMM d, yyyy")} · {l.status}
+                    {format(parseDbDate(l.start_date), "MMM d, yyyy")} – {format(parseDbDate(l.end_date), "MMM d, yyyy")} · {l.status}
                   </div>
                 </li>
               ))}
@@ -147,8 +148,8 @@ export default async function TenantDetailPage({
               {payments.map((p: any) => (
                 <li key={p.id} className="flex justify-between py-2">
                   <div>
-                    <div>{format(new Date(p.payment_date), "MMM d, yyyy")}</div>
-                    <div className="text-xs text-stone-500">For {format(new Date(p.for_month), "MMM yyyy")}</div>
+                    <div>{format(parseDbDate(p.payment_date), "MMM d, yyyy")}</div>
+                    <div className="text-xs text-stone-500">For {format(parseDbDate(p.for_month), "MMM yyyy")}</div>
                   </div>
                   <span className="text-green-700 font-medium">${Number(p.amount).toLocaleString()}</span>
                 </li>
