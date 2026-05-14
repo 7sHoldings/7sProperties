@@ -73,6 +73,7 @@ export default function PropertyPhotoGallery({
       return;
     }
 
+    let uploaded = 0;
     for (const file of files) {
       if (file.size > MAX_FILE_SIZE) {
         toast.error(`${file.name} is over 10 MB`);
@@ -83,10 +84,10 @@ export default function PropertyPhotoGallery({
         .from("documents")
         .upload(path, file);
       if (upErr) {
-        toast.error(upErr.message);
+        toast.error(`Storage upload failed: ${upErr.message}`);
         continue;
       }
-      await supabase.from("documents").insert({
+      const { error: insErr } = await supabase.from("documents").insert({
         owner_id: user.id,
         [column]: recordId,
         document_type: "photo",
@@ -95,11 +96,20 @@ export default function PropertyPhotoGallery({
         file_size: file.size,
         mime_type: file.type,
       });
+      if (insErr) {
+        // Roll back the storage upload so we don't leak orphan files
+        await supabase.storage.from("documents").remove([path]);
+        toast.error(`Save failed: ${insErr.message}`);
+        continue;
+      }
+      uploaded++;
     }
 
     if (inputRef.current) inputRef.current.value = "";
     setUploading(false);
-    toast.success(`Uploaded ${files.length} photo${files.length === 1 ? "" : "s"}`);
+    if (uploaded > 0) {
+      toast.success(`Uploaded ${uploaded} photo${uploaded === 1 ? "" : "s"}`);
+    }
     load();
     router.refresh();
   }
