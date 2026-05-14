@@ -26,8 +26,13 @@ const PROPERTY_TYPE_LABEL: Record<string, string> = {
 
 export default async function LandingPage() {
   const supabase = await createClient();
-  const { data: listings } = await supabase.rpc("public_listings");
+  const [{ data: listings }, { data: { user } }] = await Promise.all([
+    supabase.rpc("public_listings"),
+    supabase.auth.getUser(),
+  ]);
   const featured = (listings || []).slice(0, 6) as any[];
+  const role = (user?.user_metadata?.role as string) || (user ? "owner" : null);
+  const home = role === "tenant" ? "/tenant" : "/dashboard";
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -52,18 +57,37 @@ export default async function LandingPage() {
             >
               Available rentals
             </Link>
-            <Link
-              href="/tenant/login"
-              className="px-3 py-1.5 text-sm border border-stone-200 rounded-md hover:bg-stone-50"
-            >
-              Tenant sign in
-            </Link>
-            <Link
-              href="/login"
-              className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
-            >
-              Owner sign in
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href={home}
+                  className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+                >
+                  Go to {role === "tenant" ? "tenant portal" : "dashboard"}
+                </Link>
+                <Link
+                  href="/auth/signout"
+                  className="px-3 py-1.5 text-sm border border-stone-200 rounded-md hover:bg-stone-50"
+                >
+                  Sign out
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/tenant/login"
+                  className="px-3 py-1.5 text-sm border border-stone-200 rounded-md hover:bg-stone-50"
+                >
+                  Tenant sign in
+                </Link>
+                <Link
+                  href="/login"
+                  className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+                >
+                  Owner sign in
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -88,10 +112,10 @@ export default async function LandingPage() {
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-2">
             <Link
-              href="/login"
+              href={user ? home : "/login"}
               className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-teal-700 text-white text-sm font-medium rounded-md hover:bg-teal-800"
             >
-              Get started
+              {user ? `Go to ${role === "tenant" ? "tenant portal" : "dashboard"}` : "Get started"}
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
@@ -104,27 +128,60 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Login picker */}
-      <section className="px-4 sm:px-6 pb-12">
-        <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <LoginCard
-            href="/login"
-            title="I'm a property owner"
-            description="Manage your portfolio, collect rent, track expenses, and generate reports."
-            iconBg="bg-teal-100"
-            iconColor="text-teal-700"
-            icon={<Building2 className="w-5 h-5" />}
-          />
-          <LoginCard
-            href="/tenant/login"
-            title="I'm a tenant"
-            description="View your lease, payment history, submit maintenance requests, and access documents."
-            iconBg="bg-blue-100"
-            iconColor="text-blue-700"
-            icon={<Users className="w-5 h-5" />}
-          />
-        </div>
-      </section>
+      {/* Login picker — only when not signed in */}
+      {!user && (
+        <section className="px-4 sm:px-6 pb-12">
+          <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <LoginCard
+              href="/login"
+              title="I'm a property owner"
+              description="Manage your portfolio, collect rent, track expenses, and generate reports."
+              iconBg="bg-teal-100"
+              iconColor="text-teal-700"
+              icon={<Building2 className="w-5 h-5" />}
+            />
+            <LoginCard
+              href="/tenant/login"
+              title="I'm a tenant"
+              description="View your lease, payment history, submit maintenance requests, and access documents."
+              iconBg="bg-blue-100"
+              iconColor="text-blue-700"
+              icon={<Users className="w-5 h-5" />}
+            />
+          </div>
+        </section>
+      )}
+
+      {user && (
+        <section className="px-4 sm:px-6 pb-12">
+          <div className="max-w-3xl mx-auto bg-white border border-stone-200 rounded-xl p-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium text-stone-900">
+                You&apos;re signed in as {role === "tenant" ? "a tenant" : "an owner"}
+              </div>
+              <p className="text-sm text-stone-500 mt-0.5">
+                {role === "tenant"
+                  ? "View your lease, pay rent, and submit maintenance requests."
+                  : "Manage your portfolio, collect rent, and track expenses."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={home}
+                className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+              >
+                Continue
+              </Link>
+              <Link
+                href="/auth/signout"
+                className="px-3 py-1.5 text-sm border border-stone-200 rounded-md hover:bg-stone-50"
+              >
+                Sign in as someone else
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Features */}
       <section id="features" className="px-4 sm:px-6 py-16 bg-white border-y border-stone-200">
@@ -192,22 +249,24 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="px-4 sm:px-6 pb-20">
-        <div className="max-w-3xl mx-auto bg-gradient-to-br from-teal-700 to-emerald-700 rounded-2xl p-8 sm:p-10 text-center text-white">
-          <h2 className="text-2xl sm:text-3xl font-medium">Ready to manage smarter?</h2>
-          <p className="mt-2 text-teal-50">
-            Start tracking your rentals today — no setup fees, no per-unit pricing.
-          </p>
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-1.5 mt-5 px-5 py-2.5 bg-white text-teal-800 text-sm font-medium rounded-md hover:bg-teal-50"
-          >
-            Get started
-            <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </section>
+      {/* Final CTA — only when not signed in */}
+      {!user && (
+        <section className="px-4 sm:px-6 pb-20">
+          <div className="max-w-3xl mx-auto bg-gradient-to-br from-teal-700 to-emerald-700 rounded-2xl p-8 sm:p-10 text-center text-white">
+            <h2 className="text-2xl sm:text-3xl font-medium">Ready to manage smarter?</h2>
+            <p className="mt-2 text-teal-50">
+              Start tracking your rentals today — no setup fees, no per-unit pricing.
+            </p>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 mt-5 px-5 py-2.5 bg-white text-teal-800 text-sm font-medium rounded-md hover:bg-teal-50"
+            >
+              Get started
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-stone-200 bg-white">
