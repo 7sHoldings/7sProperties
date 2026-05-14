@@ -30,18 +30,27 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  const path = request.nextUrl.pathname;
+
+  // Stripe webhook is called by Stripe itself (no cookies); signature is
+  // verified inside the handler. Skip auth entirely.
+  if (path === "/api/stripe/webhook") return response;
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const path = request.nextUrl.pathname;
   const isOwnerLoginRoute = path === "/login" || path.startsWith("/login/");
   const isTenantLoginRoute = path === "/tenant/login" || path === "/tenant/signup";
   const isTenantArea = (path === "/tenant" || path.startsWith("/tenant/")) && !isTenantLoginRoute;
+  const isApiRoute = path.startsWith("/api/");
 
   // Unauthenticated: allow public paths, redirect everything else to appropriate login
   if (!user) {
     if (isPublicPath(path)) return response;
+    if (isApiRoute) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = path.startsWith("/tenant") ? "/tenant/login" : "/login";
     return NextResponse.redirect(url);
@@ -55,6 +64,9 @@ export async function middleware(request: NextRequest) {
     url.pathname = role === "tenant" ? "/tenant" : "/dashboard";
     return NextResponse.redirect(url);
   }
+
+  // API routes: auth-gate only, no role redirects (both roles need to call them)
+  if (isApiRoute) return response;
 
   // Tenant hitting an owner-only path → bounce to tenant portal
   if (role === "tenant" && !isTenantArea && path !== "/") {

@@ -17,7 +17,7 @@ export default async function PaymentsPage() {
     supabase
       .from("payments")
       .select(
-        "id, amount, payment_date, for_month, payment_method, reference_number, leases(tenants(full_name), units(unit_label, properties(id, name)))"
+        "id, amount, payment_date, for_month, payment_method, reference_number, processor_status, leases(tenants(full_name), units(unit_label, properties(id, name)))"
       )
       .order("payment_date", { ascending: false }),
     supabase.from("properties").select("id, name").order("name"),

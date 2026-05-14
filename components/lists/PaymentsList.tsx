@@ -5,6 +5,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import ListControls from "@/components/ui/ListControls";
 import DeleteButton from "@/components/DeleteButton";
+import ProcessorStatusBadge from "@/components/ui/ProcessorStatusBadge";
 import { parseDbDate } from "@/lib/dates";
 
 const SORTS = [
@@ -105,7 +106,9 @@ export default function PaymentsList({ payments, properties }: Props) {
     [properties]
   );
 
-  const totalAmount = filtered.reduce((s, p) => s + Number(p.amount), 0);
+  const totalAmount = filtered
+    .filter((p) => p.processor_status !== "failed")
+    .reduce((s, p) => s + Number(p.amount), 0);
 
   return (
     <>
@@ -139,6 +142,7 @@ export default function PaymentsList({ payments, properties }: Props) {
                   <th className="text-left px-4 py-2 font-medium">Property</th>
                   <th className="text-left px-4 py-2 font-medium">For</th>
                   <th className="text-left px-4 py-2 font-medium">Method</th>
+                  <th className="text-left px-4 py-2 font-medium">Status</th>
                   <th className="text-right px-4 py-2 font-medium">Amount</th>
                   <th className="text-right px-4 py-2 font-medium w-24"></th>
                 </tr>
@@ -157,7 +161,19 @@ export default function PaymentsList({ payments, properties }: Props) {
                     <td className="px-4 py-3 text-stone-600 capitalize">
                       {(p.payment_method || "—").replace("_", " ")}
                     </td>
-                    <td className="px-4 py-3 text-right text-green-700 font-medium">
+                    <td className="px-4 py-3">
+                      <ProcessorStatusBadge status={p.processor_status} />
+                    </td>
+                    <td
+                      className={`px-4 py-3 text-right font-medium ${
+                        p.processor_status === "failed"
+                          ? "text-red-600 line-through"
+                          : p.processor_status === "processing" ||
+                              p.processor_status === "pending"
+                            ? "text-stone-500"
+                            : "text-green-700"
+                      }`}
+                    >
                       ${Number(p.amount).toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -174,7 +190,7 @@ export default function PaymentsList({ payments, properties }: Props) {
                   </tr>
                 ))}
                 <tr className="bg-stone-50 border-t border-stone-200 font-medium">
-                  <td className="px-4 py-2 text-stone-600" colSpan={5}>
+                  <td className="px-4 py-2 text-stone-600" colSpan={6}>
                     Filtered total
                   </td>
                   <td className="px-4 py-2 text-right text-green-700">
@@ -200,9 +216,21 @@ export default function PaymentsList({ payments, properties }: Props) {
                       {format(parseDbDate(p.payment_date), "MMM d, yyyy")} · for{" "}
                       {format(parseDbDate(p.for_month), "MMM yyyy")}
                     </div>
+                    <div className="mt-1">
+                      <ProcessorStatusBadge status={p.processor_status} />
+                    </div>
                   </div>
                   <div className="text-right ml-3">
-                    <div className="text-green-700 font-medium">
+                    <div
+                      className={`font-medium ${
+                        p.processor_status === "failed"
+                          ? "text-red-600 line-through"
+                          : p.processor_status === "processing" ||
+                              p.processor_status === "pending"
+                            ? "text-stone-500"
+                            : "text-green-700"
+                      }`}
+                    >
                       ${Number(p.amount).toLocaleString()}
                     </div>
                     <div className="flex gap-3 mt-2 justify-end">

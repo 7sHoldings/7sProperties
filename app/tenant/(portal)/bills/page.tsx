@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { format, startOfMonth, addMonths, isBefore } from "date-fns";
 import { Calendar, Check, AlertCircle, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { parseDbDate } from "@/lib/dates";
+import PayRentButton from "@/components/tenant/PayRentButton";
 
 export default async function TenantBillsPage() {
   const supabase = await createClient();
@@ -24,18 +26,28 @@ export default async function TenantBillsPage() {
     );
   }
 
-  const [leasesRes, paymentsRes] = await Promise.all([
+  const [leasesRes, paymentsRes, methodsRes] = await Promise.all([
     supabase
       .from("leases")
-      .select("id, start_date, end_date, monthly_rent, rent_due_day, status")
+      .select(
+        "id, start_date, end_date, monthly_rent, rent_due_day, status, autopay_enabled"
+      )
       .order("start_date", { ascending: false }),
     supabase
       .from("payments")
-      .select("amount, payment_date, for_month, lease_id"),
+      .select("amount, payment_date, for_month, lease_id, processor_status"),
+    supabase
+      .from("tenant_payment_methods")
+      .select("*")
+      .eq("tenant_id", tenant.id)
+      .neq("status", "detached")
+      .order("created_at", { ascending: false }),
   ]);
 
   const leases = (leasesRes.data || []) as any[];
   const payments = (paymentsRes.data || []) as any[];
+  const methods = (methodsRes.data || []) as any[];
+  const hasActiveMethod = methods.some((m) => m.status === "active");
 
   // Build month-by-month timeline for the active lease, plus 3 future months
   const activeLease = leases.find((l) => l.status === "active");
@@ -120,6 +132,23 @@ export default async function TenantBillsPage() {
         </div>
       </div>
 
+      {activeLease && !hasActiveMethod && (
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="font-medium text-stone-900">Pay rent online</div>
+            <p className="text-sm text-stone-600">
+              Link a bank account or card to pay rent in one click.
+            </p>
+          </div>
+          <Link
+            href="/tenant/payments/methods"
+            className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+          >
+            Add payment method
+          </Link>
+        </div>
+      )}
+
       {!activeLease ? (
         <div className="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
           No active lease. Bills will appear here once a lease is set up.
@@ -192,6 +221,18 @@ export default async function TenantBillsPage() {
                               ? "Upcoming"
                               : "Due"}
                     </StatusBadge>
+                    {activeLease &&
+                      hasActiveMethod &&
+                      (r.status === "due" ||
+                        r.status === "overdue" ||
+                        r.status === "partial") && (
+                        <PayRentButton
+                          leaseId={activeLease.id}
+                          forMonth={`${r.key}-01`}
+                          defaultAmount={Math.max(r.expected - r.paid, 0)}
+                          methods={methods as any}
+                        />
+                      )}
                   </div>
                 </div>
               </li>
