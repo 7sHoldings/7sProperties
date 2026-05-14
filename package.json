@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@stripe/react-stripe-js": "^6.3.0",
+    "@stripe/stripe-js": "^9.5.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
     "date-fns": "^4.1.0",
@@ -20,6 +22,7 @@
     "react-hook-form": "^7.75.0",
     "recharts": "^3.8.1",
     "sonner": "^2.0.7",
+    "stripe": "^22.1.1",
     "zod": "^4.4.2"
   },
   "devDependencies": {

@@ -50,6 +50,28 @@ On Vercel:
 2. Add the same two env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
 3. Deploy — done.
 
+### 5. Stripe ACH + card payments (optional)
+Enable the tenant portal "Pay rent" flow.
+
+1. Create a Stripe account (use test mode first).
+2. In the Stripe Dashboard:
+   - **Developers → API keys** — copy the publishable + secret keys
+   - **Settings → Payment methods** — turn on **ACH Direct Debit** and **Financial Connections**
+3. Set up the webhook endpoint:
+   - **Developers → Webhooks → Add endpoint**
+   - URL: `https://your-domain.com/api/stripe/webhook`
+   - Events: `payment_intent.succeeded`, `payment_intent.processing`, `payment_intent.payment_failed`, `payment_intent.canceled`, `invoice.paid`, `invoice.payment_succeeded`, `invoice.payment_failed`, `setup_intent.succeeded`
+   - Copy the signing secret (starts with `whsec_`)
+4. Add these env vars (both locally and on Vercel):
+   - `STRIPE_SECRET_KEY`
+   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+   - `SUPABASE_SERVICE_ROLE_KEY` (used by the webhook handler only)
+5. Run `supabase/v9-stripe-payments.sql` in the Supabase SQL Editor to add Stripe columns to `tenants`, `leases`, and `payments` plus the `tenant_payment_methods` table.
+6. For local development run `stripe listen --forward-to localhost:3000/api/stripe/webhook` and use the printed `whsec_` value for `STRIPE_WEBHOOK_SECRET`.
+
+ACH payments take 3–5 business days to clear. Until they do, the payment shows as **Processing** in both the tenant and landlord views. Cards clear instantly.
+
 ## Project structure
 
 ```
