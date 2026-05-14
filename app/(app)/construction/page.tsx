@@ -17,15 +17,29 @@ const STATUS_COLOR: Record<string, string> = {
   completed: "bg-emerald-100 text-emerald-800",
 };
 
+// Active work first, then upcoming, then paused, then archived.
+// Within each status, most recently updated bubbles to the top.
+const STATUS_RANK: Record<string, number> = {
+  in_progress: 0,
+  planning: 1,
+  on_hold: 2,
+  completed: 3,
+};
+
 export default async function ConstructionPage() {
   const supabase = await createClient();
 
   const { data: projects } = await supabase
     .from("construction_projects")
-    .select("*, construction_expenses(amount)")
-    .order("created_at", { ascending: false });
+    .select("*, construction_expenses(amount)");
 
-  const list = (projects || []) as any[];
+  const list = ((projects || []) as any[]).slice().sort((a, b) => {
+    const rankDiff = (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99);
+    if (rankDiff !== 0) return rankDiff;
+    const aTime = new Date(a.updated_at || a.created_at).getTime();
+    const bTime = new Date(b.updated_at || b.created_at).getTime();
+    return bTime - aTime;
+  });
 
   const totalBudget = list.reduce(
     (s: number, p: any) => s + (Number(p.budget) || 0),
@@ -87,76 +101,95 @@ export default async function ConstructionPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {list.map((p: any) => {
-            const spent = (p.construction_expenses || []).reduce(
-              (s: number, e: any) => s + Number(e.amount),
-              0
-            );
-            const budget = Number(p.budget) || 0;
-            const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+        <div className="space-y-6">
+          {(["in_progress", "planning", "on_hold", "completed"] as const).map((status) => {
+            const items = list.filter((p: any) => p.status === status);
+            if (items.length === 0) return null;
             return (
-              <div
-                key={p.id}
-                className="bg-white border border-stone-200 rounded-xl p-4 hover:border-stone-300 flex flex-col"
-              >
-                <Link href={`/construction/${p.id}`} className="block flex-1">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-medium truncate">{p.name}</h3>
-                    <span
-                      className={`text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap ${
-                        STATUS_COLOR[p.status] || "bg-stone-100"
-                      }`}
-                    >
-                      {STATUS_LABEL[p.status] || p.status}
-                    </span>
-                  </div>
-                  {p.address && (
-                    <p className="text-xs text-stone-500 mb-3 truncate">{p.address}</p>
-                  )}
-                  <div className="text-sm flex justify-between mb-1">
-                    <span className="text-stone-500">Spent</span>
-                    <span className="font-medium">${spent.toLocaleString()}</span>
-                  </div>
-                  <div className="text-sm flex justify-between mb-2">
-                    <span className="text-stone-500">Budget</span>
-                    <span>{budget > 0 ? `$${budget.toLocaleString()}` : "—"}</span>
-                  </div>
-                  {budget > 0 && (
-                    <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${
-                          pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-teal-600"
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  )}
-                  {p.expected_completion_date && (
-                    <p className="text-[11px] text-stone-500 mt-3">
-                      Target: {format(parseDbDate(p.expected_completion_date), "MMM d, yyyy")}
-                    </p>
-                  )}
-                </Link>
-                <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between">
-                  <Link
-                    href={`/construction/${p.id}#add-expense`}
-                    className="text-xs text-teal-700 hover:text-teal-800 font-medium"
-                  >
-                    + Log expense
-                  </Link>
-                  <Link
-                    href={`/construction/${p.id}`}
-                    className="text-xs text-stone-500 hover:text-stone-700"
-                  >
-                    View details →
-                  </Link>
+              <section key={status}>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h2 className="text-sm font-semibold text-stone-700 uppercase tracking-wider">
+                    {STATUS_LABEL[status]}
+                  </h2>
+                  <span className="text-xs text-stone-500">
+                    {items.length} {items.length === 1 ? "project" : "projects"}
+                  </span>
                 </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {items.map((p: any) => (
+                    <ProjectCard key={p.id} project={p} />
+                  ))}
+                </div>
+              </section>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function ProjectCard({ project: p }: { project: any }) {
+  const spent = (p.construction_expenses || []).reduce(
+    (s: number, e: any) => s + Number(e.amount),
+    0
+  );
+  const budget = Number(p.budget) || 0;
+  const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+  return (
+    <div className="bg-white border border-stone-200 rounded-xl p-4 hover:border-stone-300 flex flex-col">
+      <Link href={`/construction/${p.id}`} className="block flex-1">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="font-medium truncate">{p.name}</h3>
+          <span
+            className={`text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap ${
+              STATUS_COLOR[p.status] || "bg-stone-100"
+            }`}
+          >
+            {STATUS_LABEL[p.status] || p.status}
+          </span>
+        </div>
+        {p.address && (
+          <p className="text-xs text-stone-500 mb-3 truncate">{p.address}</p>
+        )}
+        <div className="text-sm flex justify-between mb-1">
+          <span className="text-stone-500">Spent</span>
+          <span className="font-medium">${spent.toLocaleString()}</span>
+        </div>
+        <div className="text-sm flex justify-between mb-2">
+          <span className="text-stone-500">Budget</span>
+          <span>{budget > 0 ? `$${budget.toLocaleString()}` : "—"}</span>
+        </div>
+        {budget > 0 && (
+          <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full ${
+                pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-teal-600"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        )}
+        {p.expected_completion_date && (
+          <p className="text-[11px] text-stone-500 mt-3">
+            Target: {format(parseDbDate(p.expected_completion_date), "MMM d, yyyy")}
+          </p>
+        )}
+      </Link>
+      <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between">
+        <Link
+          href={`/construction/${p.id}#add-expense`}
+          className="text-xs text-teal-700 hover:text-teal-800 font-medium"
+        >
+          + Log expense
+        </Link>
+        <Link
+          href={`/construction/${p.id}`}
+          className="text-xs text-stone-500 hover:text-stone-700"
+        >
+          View details →
+        </Link>
+      </div>
     </div>
   );
 }
