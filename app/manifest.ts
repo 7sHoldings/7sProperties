@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "7s Rental",
-    short_name: "7s Rental",
-    description: "Rental property management — track rent, expenses, maintenance, and tenants in one place.",
+    name: "7s Properties",
+    short_name: "7s Properties",
+    description: "Manage rental homes and construction projects in one place — rent, tenants, expenses, builds.",
     start_url: "/dashboard",
     display: "standalone",
     background_color: "#fafaf9",

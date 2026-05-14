@@ -101,7 +101,7 @@ export default function PaymentsList({ payments, properties }: Props) {
   }, [payments, search, propertyId, method, year, month, sort]);
 
   const propOptions = useMemo(
-    () => [{ value: "all", label: "All properties" }, ...properties.map((p) => ({ value: p.id, label: p.name }))],
+    () => [{ value: "all", label: "All rental homes" }, ...properties.map((p) => ({ value: p.id, label: p.name }))],
     [properties]
   );
 

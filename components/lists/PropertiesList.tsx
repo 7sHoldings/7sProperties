@@ -111,14 +111,14 @@ export default function PropertiesList({ properties }: { properties: Property[] 
       {properties.length === 0 ? (
         <EmptyState
           icon={<Building2 className="w-6 h-6" />}
-          title="No properties yet"
-          description="Add your first property to start tracking rent, expenses, and maintenance."
-          actionLabel="+ Add property"
+          title="No rental homes yet"
+          description="Add your first rental home to start tracking rent, expenses, and maintenance."
+          actionLabel="+ Add rental home"
           actionHref="/properties/new"
         />
       ) : filtered.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
-          No properties match your filters.
+          No rental homes match your filters.
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

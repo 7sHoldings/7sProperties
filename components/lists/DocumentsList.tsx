@@ -155,7 +155,7 @@ export default function DocumentsList({ docs, properties }: Props) {
   }
 
   const propOptions = [
-    { value: "all", label: "All properties" },
+    { value: "all", label: "All rental homes" },
     ...properties.map((p) => ({ value: p.id, label: p.name })),
   ];
 

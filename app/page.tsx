@@ -39,9 +39,9 @@ export default async function LandingPage() {
               7s
             </div>
             <div className="leading-tight">
-              <div className="text-base font-semibold text-stone-900">7s Rental</div>
+              <div className="text-base font-semibold text-stone-900">7s Properties</div>
               <div className="text-[10px] uppercase tracking-wider text-stone-500">
-                Property manager
+                Rentals &amp; construction
               </div>
             </div>
           </Link>
@@ -216,7 +216,7 @@ export default async function LandingPage() {
             <div className="w-6 h-6 rounded bg-teal-700 text-white flex items-center justify-center text-xs font-bold">
               7s
             </div>
-            <span>© {new Date().getFullYear()} 7s Rental</span>
+            <span>© {new Date().getFullYear()} 7s Properties</span>
           </div>
           <div className="flex gap-4">
             <Link href="/login" className="hover:text-teal-700">

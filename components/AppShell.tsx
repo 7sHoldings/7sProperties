@@ -27,19 +27,37 @@ import ThemeToggle from "@/components/ThemeToggle";
 import CommandPalette from "@/components/CommandPalette";
 import MobileBottomNav from "@/components/MobileBottomNav";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/properties", label: "Properties", icon: Building2 },
-  { href: "/construction", label: "Construction", icon: HardHat },
-  { href: "/tenants", label: "Tenants", icon: Users },
-  { href: "/payments", label: "Payments", icon: DollarSign },
-  { href: "/expenses", label: "Expenses", icon: Receipt },
-  { href: "/recurring", label: "Recurring", icon: Repeat },
-  { href: "/mileage", label: "Mileage", icon: Car },
-  { href: "/maintenance", label: "Maintenance", icon: Wrench },
-  { href: "/distributions", label: "Profit taken out", icon: Wallet },
-  { href: "/documents", label: "Documents", icon: FolderOpen },
-  { href: "/reports", label: "Reports", icon: FileText },
+type NavItem = { href: string; label: string; icon: typeof Home };
+type NavSection = { heading?: string; items: NavItem[] };
+
+const navSections: NavSection[] = [
+  {
+    items: [{ href: "/dashboard", label: "Dashboard", icon: Home }],
+  },
+  {
+    heading: "Rentals",
+    items: [
+      { href: "/properties", label: "Rental Homes", icon: Building2 },
+      { href: "/tenants", label: "Tenants", icon: Users },
+      { href: "/payments", label: "Payments", icon: DollarSign },
+      { href: "/expenses", label: "Expenses", icon: Receipt },
+      { href: "/recurring", label: "Recurring", icon: Repeat },
+      { href: "/mileage", label: "Mileage", icon: Car },
+      { href: "/maintenance", label: "Maintenance", icon: Wrench },
+    ],
+  },
+  {
+    heading: "Construction",
+    items: [{ href: "/construction", label: "Projects", icon: HardHat }],
+  },
+  {
+    heading: "Finance & Records",
+    items: [
+      { href: "/distributions", label: "Profit taken out", icon: Wallet },
+      { href: "/documents", label: "Documents", icon: FolderOpen },
+      { href: "/reports", label: "Reports", icon: FileText },
+    ],
+  },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -57,9 +75,9 @@ function Logo({ size = "md" }: { size?: "sm" | "md" }) {
       </div>
       <div className="leading-tight">
         <div className={`${size === "md" ? "text-base" : "text-sm"} font-semibold text-stone-900`}>
-          7s Rental
+          7s Properties
         </div>
-        <div className="text-[10px] uppercase tracking-wider text-stone-500">Property manager</div>
+        <div className="text-[10px] uppercase tracking-wider text-stone-500">Rentals &amp; construction</div>
       </div>
     </div>
   );
@@ -204,24 +222,33 @@ export default function AppShell({ userEmail, children }: { userEmail: string; c
 function NavList({ pathname }: { pathname: string }) {
   return (
     <nav className="p-2">
-      {navItems.map((item) => {
-        const Icon = item.icon;
-        const active = isActive(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm mb-1 transition-colors ${
-              active
-                ? "bg-teal-50 text-teal-800 font-medium"
-                : "text-stone-600 hover:bg-stone-50 hover:text-stone-900"
-            }`}
-          >
-            <Icon className={`w-4 h-4 ${active ? "text-teal-700" : "text-stone-500"}`} />
-            {item.label}
-          </Link>
-        );
-      })}
+      {navSections.map((section, idx) => (
+        <div key={section.heading ?? `section-${idx}`} className={idx > 0 ? "mt-4" : ""}>
+          {section.heading && (
+            <div className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+              {section.heading}
+            </div>
+          )}
+          {section.items.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm mb-1 transition-colors ${
+                  active
+                    ? "bg-teal-50 text-teal-800 font-medium"
+                    : "text-stone-600 hover:bg-stone-50 hover:text-stone-900"
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${active ? "text-teal-700" : "text-stone-500"}`} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }

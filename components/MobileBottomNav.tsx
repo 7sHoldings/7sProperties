@@ -6,7 +6,7 @@ import { Home, Building2, DollarSign, Wrench, FolderOpen } from "lucide-react";
 
 const items = [
   { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/properties", label: "Properties", icon: Building2 },
+  { href: "/properties", label: "Rentals", icon: Building2 },
   { href: "/payments", label: "Payments", icon: DollarSign },
   { href: "/maintenance", label: "Repairs", icon: Wrench },
   { href: "/documents", label: "Files", icon: FolderOpen },

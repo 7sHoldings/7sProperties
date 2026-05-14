@@ -3,8 +3,8 @@ import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "7s Rental",
-  description: "Manage your rental properties with 7s Rental.",
+  title: "7s Properties",
+  description: "Manage rental homes and construction projects with 7s Properties.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

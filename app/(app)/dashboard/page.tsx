@@ -161,7 +161,7 @@ export default async function DashboardPage() {
 
   // Onboarding state
   const onboarding = [
-    { id: "property", label: "Add your first property", done: properties.length > 0, href: "/properties/new" },
+    { id: "property", label: "Add your first rental home", done: properties.length > 0, href: "/properties/new" },
     { id: "tenant", label: "Add a tenant", done: tenants.length > 0, href: "/tenants/new" },
     { id: "lease", label: "Assign tenant to a unit", done: activeLeases.length > 0, href: "/tenants/new" },
     { id: "payment", label: "Record your first rent payment", done: ytdIncome > 0, href: "/payments/new" },
@@ -182,7 +182,7 @@ export default async function DashboardPage() {
             href="/properties/new"
             className="px-3 py-1.5 text-sm bg-white border border-stone-200 rounded-md hover:bg-stone-50"
           >
-            + Add property
+            + Add rental home
           </Link>
           <Link
             href="/payments/new"
@@ -262,7 +262,7 @@ export default async function DashboardPage() {
       {/* This-month KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         <KpiCard
-          label="Total properties"
+          label="Rental homes"
           value={properties.length.toString()}
           sub={`${occupiedUnits}/${totalUnits} units occupied`}
         />
