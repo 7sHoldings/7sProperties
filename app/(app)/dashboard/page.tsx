@@ -9,7 +9,7 @@ import {
   differenceInCalendarDays,
 } from "date-fns";
 import { parseDbDate } from "@/lib/dates";
-import { AlertTriangle, CheckCircle2, Circle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, HardHat } from "lucide-react";
 import LeaseAlerts from "@/components/LeaseAlerts";
 import ActivityFeed from "@/components/ActivityFeed";
 import { CashflowChart, CategoryPieChart } from "@/components/DashboardCharts";
@@ -39,6 +39,8 @@ export default async function DashboardPage() {
     categoryExpensesRes,
     tenantsRes,
     openMaintRes,
+    constructionProjectsRes,
+    constructionExpensesYtdRes,
   ] = await Promise.all([
     supabase.from("properties").select("id, name"),
     supabase.from("units").select("id, status"),
@@ -68,6 +70,13 @@ export default async function DashboardPage() {
       .from("maintenance_requests")
       .select("id, title, status, priority")
       .in("status", ["open", "in_progress"]),
+    supabase
+      .from("construction_projects")
+      .select("id, name, status, budget, construction_expenses(amount)"),
+    supabase
+      .from("construction_expenses")
+      .select("amount, expense_date")
+      .gte("expense_date", yearStart),
   ]);
 
   const properties = propsRes.data || [];
@@ -83,6 +92,44 @@ export default async function DashboardPage() {
   const expectedRent = activeLeases.reduce((sum, l) => sum + Number(l.monthly_rent), 0);
   const collectedRent = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = Math.max(0, expectedRent - collectedRent);
+
+  // ── Construction KPIs ──
+  const constructionProjects = (constructionProjectsRes.data || []) as any[];
+  const constructionYtdExpenses = (constructionExpensesYtdRes.data || []) as any[];
+  const activeBuilds = constructionProjects.filter((p) => p.status === "in_progress").length;
+  const planningBuilds = constructionProjects.filter((p) => p.status === "planning").length;
+  const totalBudget = constructionProjects.reduce(
+    (s, p) => s + (Number(p.budget) || 0),
+    0
+  );
+  const totalSpentBuild = constructionProjects.reduce(
+    (s, p) =>
+      s + (p.construction_expenses || []).reduce((a: number, e: any) => a + Number(e.amount), 0),
+    0
+  );
+  const ytdBuildSpent = constructionYtdExpenses.reduce(
+    (s, e: any) => s + Number(e.amount),
+    0
+  );
+  const overBudgetProjects = constructionProjects.filter((p) => {
+    const b = Number(p.budget) || 0;
+    if (b <= 0) return false;
+    const spent = (p.construction_expenses || []).reduce(
+      (a: number, e: any) => a + Number(e.amount),
+      0
+    );
+    return spent > b;
+  });
+  const nearBudgetProjects = constructionProjects.filter((p) => {
+    const b = Number(p.budget) || 0;
+    if (b <= 0) return false;
+    const spent = (p.construction_expenses || []).reduce(
+      (a: number, e: any) => a + Number(e.amount),
+      0
+    );
+    const pct = spent / b;
+    return pct >= 0.8 && pct <= 1;
+  });
 
   const ytdIncome = (ytdPaymentsRes.data || []).reduce((s, p: any) => s + Number(p.amount), 0);
   const ytdExpenses = (ytdExpensesRes.data || []).reduce((s, e: any) => s + Number(e.amount), 0);
@@ -156,6 +203,21 @@ export default async function DashboardPage() {
       type: "warn",
       text: `${highPriOpen.length} high-priority maintenance request${highPriOpen.length === 1 ? "" : "s"} pending.`,
       href: "/maintenance",
+    });
+  }
+
+  if (overBudgetProjects.length > 0) {
+    alerts.push({
+      type: "warn",
+      text: `${overBudgetProjects.length} construction project${overBudgetProjects.length === 1 ? " is" : "s are"} over budget.`,
+      href: "/construction",
+    });
+  }
+  if (nearBudgetProjects.length > 0) {
+    alerts.push({
+      type: "warn",
+      text: `${nearBudgetProjects.length} construction project${nearBudgetProjects.length === 1 ? " is" : "s are"} within 20% of budget.`,
+      href: "/construction",
     });
   }
 
@@ -259,7 +321,8 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* This-month KPIs */}
+      {/* RENTALS section */}
+      <SectionHeader title="Rentals" href="/properties" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         <KpiCard
           label="Rental homes"
@@ -276,10 +339,10 @@ export default async function DashboardPage() {
         <KpiCard label="Active leases" value={activeLeases.length.toString()} sub="Currently active" />
       </div>
 
-      {/* YTD KPIs */}
+      {/* YTD financial KPIs (rentals) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <KpiCard
-          label="YTD income"
+          label="YTD rent income"
           value={`$${ytdIncome.toLocaleString()}`}
           sub={`${new Date().getFullYear()} year-to-date`}
           tone="success"
@@ -301,6 +364,69 @@ export default async function DashboardPage() {
           tone={available > 0 ? "success" : available < 0 ? "warning" : undefined}
         />
       </div>
+
+      {/* CONSTRUCTION section */}
+      <SectionHeader title="Construction" href="/construction" icon={<HardHat className="w-4 h-4" />} />
+      {constructionProjects.length === 0 ? (
+        <div className="bg-white border border-stone-200 rounded-xl p-5 text-sm text-stone-600 mb-6 flex flex-wrap items-center justify-between gap-3">
+          <span>No construction projects yet — track new builds before they become rentals.</span>
+          <Link
+            href="/construction/new"
+            className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+          >
+            + New project
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <KpiCard
+            label="Active builds"
+            value={activeBuilds.toString()}
+            sub={
+              planningBuilds > 0
+                ? `${planningBuilds} more in planning`
+                : `${constructionProjects.length} total`
+            }
+          />
+          <KpiCard
+            label="Total budget"
+            value={totalBudget > 0 ? `$${totalBudget.toLocaleString()}` : "—"}
+            sub="Across all projects"
+          />
+          <KpiCard
+            label="Total spent"
+            value={`$${totalSpentBuild.toLocaleString()}`}
+            sub={
+              totalBudget > 0
+                ? `${Math.round((totalSpentBuild / totalBudget) * 100)}% of budget`
+                : `$${ytdBuildSpent.toLocaleString()} YTD`
+            }
+            tone={
+              totalBudget > 0 && totalSpentBuild > totalBudget
+                ? "warning"
+                : undefined
+            }
+          />
+          <KpiCard
+            label="Over budget"
+            value={overBudgetProjects.length.toString()}
+            sub={
+              overBudgetProjects.length > 0
+                ? "Needs attention"
+                : nearBudgetProjects.length > 0
+                  ? `${nearBudgetProjects.length} near limit`
+                  : "All on track"
+            }
+            tone={
+              overBudgetProjects.length > 0
+                ? "warning"
+                : nearBudgetProjects.length > 0
+                  ? "warning"
+                  : "success"
+            }
+          />
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
@@ -341,6 +467,28 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SectionHeader({
+  title,
+  href,
+  icon,
+}: {
+  title: string;
+  href: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-baseline justify-between mb-2">
+      <h2 className="text-sm font-semibold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
+        {icon}
+        {title}
+      </h2>
+      <Link href={href} className="text-xs text-teal-700 hover:text-teal-800">
+        View all →
+      </Link>
     </div>
   );
 }
