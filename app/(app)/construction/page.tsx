@@ -11,6 +11,30 @@ export default async function ConstructionPage() {
 
   const list = (projects || []) as any[];
 
+  // Fetch latest project photo per project + sign URLs (1hr) for the cards
+  const ids = list.map((p) => p.id);
+  const coverByProject: Record<string, string> = {};
+  if (ids.length > 0) {
+    const { data: photos } = await supabase
+      .from("documents")
+      .select("construction_project_id, file_path, created_at")
+      .in("construction_project_id", ids)
+      .eq("document_type", "photo")
+      .order("created_at", { ascending: false });
+    const seen = new Set<string>();
+    for (const p of (photos || []) as any[]) {
+      if (!p.construction_project_id || seen.has(p.construction_project_id)) continue;
+      seen.add(p.construction_project_id);
+      const { data: signed } = await supabase.storage
+        .from("documents")
+        .createSignedUrl(p.file_path, 3600);
+      if (signed?.signedUrl) coverByProject[p.construction_project_id] = signed.signedUrl;
+    }
+  }
+  list.forEach((p) => {
+    p.cover_url = coverByProject[p.id] || null;
+  });
+
   const totalBudget = list.reduce(
     (s: number, p: any) => s + (Number(p.budget) || 0),
     0

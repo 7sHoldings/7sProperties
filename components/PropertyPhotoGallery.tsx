@@ -16,7 +16,15 @@ type Photo = {
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-export default function PropertyPhotoGallery({ propertyId }: { propertyId: string }) {
+type Props = {
+  propertyId?: string;
+  constructionProjectId?: string;
+};
+
+export default function PropertyPhotoGallery({
+  propertyId,
+  constructionProjectId,
+}: Props) {
   const supabase = createClient();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,11 +32,15 @@ export default function PropertyPhotoGallery({ propertyId }: { propertyId: strin
   const [uploading, setUploading] = useState(false);
   const [viewing, setViewing] = useState<Photo | null>(null);
 
+  const column = propertyId ? "property_id" : "construction_project_id";
+  const recordId = propertyId || constructionProjectId || "";
+
   async function load() {
+    if (!recordId) return;
     const { data } = await supabase
       .from("documents")
       .select("id, file_name, file_path, mime_type, created_at")
-      .eq("property_id", propertyId)
+      .eq(column, recordId)
       .eq("document_type", "photo")
       .order("created_at", { ascending: false });
 
@@ -46,7 +58,7 @@ export default function PropertyPhotoGallery({ propertyId }: { propertyId: strin
 
   useEffect(() => {
     load();
-  }, [propertyId]);
+  }, [recordId]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
@@ -66,7 +78,7 @@ export default function PropertyPhotoGallery({ propertyId }: { propertyId: strin
         toast.error(`${file.name} is over 10 MB`);
         continue;
       }
-      const path = `${user.id}/property_id/${propertyId}/photos/${Date.now()}-${file.name}`;
+      const path = `${user.id}/${column}/${recordId}/photos/${Date.now()}-${file.name}`;
       const { error: upErr } = await supabase.storage
         .from("documents")
         .upload(path, file);
@@ -76,7 +88,7 @@ export default function PropertyPhotoGallery({ propertyId }: { propertyId: strin
       }
       await supabase.from("documents").insert({
         owner_id: user.id,
-        property_id: propertyId,
+        [column]: recordId,
         document_type: "photo",
         file_name: file.name,
         file_path: path,
