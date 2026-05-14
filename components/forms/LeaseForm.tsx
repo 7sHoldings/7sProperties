@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import { leaseSchema, type LeaseInput, type LeaseValues } from "@/lib/schemas";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
+import PendingFilesInput from "@/components/PendingFilesInput";
+import { uploadPendingFiles } from "@/lib/uploadPending";
 
 export default function LeaseForm() {
   const router = useRouter();
@@ -18,6 +20,7 @@ export default function LeaseForm() {
   const supabase = createClient();
   const [tenants, setTenants] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
+  const [agreementFiles, setAgreementFiles] = useState<File[]>([]);
 
   const today = format(new Date(), "yyyy-MM-dd");
   const oneYear = format(addYears(new Date(), 1), "yyyy-MM-dd");
@@ -62,26 +65,44 @@ export default function LeaseForm() {
       return;
     }
 
-    const { error } = await supabase.from("leases").insert({
-      owner_id: user.id,
-      tenant_id: values.tenant_id,
-      unit_id: values.unit_id,
-      start_date: values.start_date,
-      end_date: values.end_date,
-      monthly_rent: values.monthly_rent,
-      security_deposit: values.security_deposit ?? null,
-      rent_due_day: values.rent_due_day ?? 1,
-      notes: values.notes || null,
-    });
+    const { data: lease, error } = await supabase
+      .from("leases")
+      .insert({
+        owner_id: user.id,
+        tenant_id: values.tenant_id,
+        unit_id: values.unit_id,
+        start_date: values.start_date,
+        end_date: values.end_date,
+        monthly_rent: values.monthly_rent,
+        security_deposit: values.security_deposit ?? null,
+        rent_due_day: values.rent_due_day ?? 1,
+        notes: values.notes || null,
+      })
+      .select("id")
+      .single();
 
-    if (error) {
-      toast.error(error.message);
+    if (error || !lease) {
+      toast.error(error?.message || "Failed to create lease");
       return;
     }
 
     await supabase.from("units").update({ status: "occupied" }).eq("id", values.unit_id);
 
-    toast.success("Lease created");
+    if (agreementFiles.length > 0) {
+      await uploadPendingFiles(
+        supabase,
+        user.id,
+        lease.id,
+        "lease",
+        agreementFiles.map((file) => ({ file, documentType: "lease" }))
+      );
+    }
+
+    toast.success(
+      agreementFiles.length > 0
+        ? `Lease created with ${agreementFiles.length} file${agreementFiles.length === 1 ? "" : "s"}`
+        : "Lease created"
+    );
     const tenantId = values.tenant_id;
     router.push(`/tenants/${tenantId}`);
     router.refresh();
@@ -176,6 +197,13 @@ export default function LeaseForm() {
       </div>
 
       <Textarea label="Notes" rows={2} error={errors.notes?.message} {...register("notes")} />
+
+      <PendingFilesInput
+        files={agreementFiles}
+        onChange={setAgreementFiles}
+        label="Signed rental agreement"
+        hint="Attach the signed lease PDF or photos. Max 10 MB each."
+      />
 
       <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
         <Link
