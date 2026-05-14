@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import DeleteButton from "@/components/DeleteButton";
-import ConstructionExpenseForm from "@/components/forms/ConstructionExpenseForm";
+import ConstructionExpensesPanel from "@/components/ConstructionExpensesPanel";
 import ConvertToPropertyButton from "@/components/ConvertToPropertyButton";
 import { parseDbDate } from "@/lib/dates";
 
@@ -48,6 +48,20 @@ export default async function ConstructionDetailPage({
   const budget = Number(project.budget) || 0;
   const remaining = budget > 0 ? budget - spent : 0;
   const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+
+  // Receipt counts per expense
+  const expenseIds = list.map((e) => e.id);
+  let receiptCounts: Record<string, number> = {};
+  if (expenseIds.length > 0) {
+    const { data: docs } = await supabase
+      .from("documents")
+      .select("construction_expense_id")
+      .in("construction_expense_id", expenseIds);
+    (docs || []).forEach((d: any) => {
+      const key = d.construction_expense_id;
+      if (key) receiptCounts[key] = (receiptCounts[key] || 0) + 1;
+    });
+  }
 
   // Spend by category
   const byCategory = list.reduce<Record<string, number>>((acc, e: any) => {
@@ -136,46 +150,15 @@ export default async function ConstructionDetailPage({
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
-        <div
-          id="add-expense"
-          className="lg:col-span-2 bg-white border border-stone-200 rounded-xl p-4 scroll-mt-20"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-medium">Build expenses</h2>
-            {list.length > 0 && <ConstructionExpenseForm projectId={project.id} />}
-          </div>
-          {list.length === 0 ? (
-            <div>
-              <p className="text-sm text-stone-500 mb-3">
-                No expenses logged yet. Add your first build expense below — lumber, labor,
-                permits, etc.
-              </p>
-              <ConstructionExpenseForm projectId={project.id} defaultOpen />
-            </div>
-          ) : (
-            <ul className="text-sm divide-y divide-stone-100">
-              {list.map((e: any) => (
-                <li key={e.id} className="py-2">
-                  <div className="flex justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{e.description}</div>
-                      <div className="text-xs text-stone-500">
-                        {format(parseDbDate(e.expense_date), "MMM d, yyyy")} ·{" "}
-                        {(e.category || "other").replace(/_/g, " ")}
-                        {e.vendor ? ` · ${e.vendor}` : ""}
-                      </div>
-                    </div>
-                    <span className="font-medium whitespace-nowrap">
-                      ${Number(e.amount).toLocaleString()}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div id="add-expense" className="lg:col-span-2 scroll-mt-20">
+          <ConstructionExpensesPanel
+            projectId={project.id}
+            expenses={list}
+            receiptCounts={receiptCounts}
+          />
         </div>
 
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
+        <div className="bg-white border border-stone-200 rounded-xl p-4 h-fit">
           <h2 className="font-medium mb-3">By category</h2>
           {categories.length === 0 ? (
             <p className="text-sm text-stone-500">No spend yet.</p>
