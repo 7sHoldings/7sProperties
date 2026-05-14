@@ -76,6 +76,23 @@ export default async function PropertyDetailPage({
   const cashflowExpenses = (cashflowExpensesRes.data || []) as any[];
   const cashflowDistributions = (distRes.data || []) as any[];
 
+  // Cover photo (most recent property photo) for the hero strip
+  const { data: coverDoc } = await supabase
+    .from("documents")
+    .select("file_path")
+    .eq("property_id", id)
+    .eq("document_type", "photo")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let coverUrl: string | null = null;
+  if (coverDoc?.file_path) {
+    const { data: signed } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(coverDoc.file_path, 3600);
+    coverUrl = signed?.signedUrl || null;
+  }
+
   const totalRent = leases
     .filter((l: any) => l.status === "active")
     .reduce((s: number, l: any) => s + Number(l.monthly_rent), 0);
@@ -87,6 +104,17 @@ export default async function PropertyDetailPage({
         <span>›</span>
         <span className="text-stone-900 truncate">{property.name}</span>
       </div>
+
+      {coverUrl && (
+        <div className="relative h-48 sm:h-64 rounded-xl overflow-hidden mb-6 bg-stone-100">
+          <img
+            src={coverUrl}
+            alt={property.name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div className="min-w-0">

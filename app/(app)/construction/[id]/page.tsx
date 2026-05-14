@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import DeleteButton from "@/components/DeleteButton";
 import ConstructionExpensesPanel from "@/components/ConstructionExpensesPanel";
 import ConvertToPropertyButton from "@/components/ConvertToPropertyButton";
+import PropertyPhotoGallery from "@/components/PropertyPhotoGallery";
 import { parseDbDate } from "@/lib/dates";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -63,6 +64,23 @@ export default async function ConstructionDetailPage({
     });
   }
 
+  // Cover photo (most recent project photo). Signed URL for the hero strip.
+  const { data: coverDoc } = await supabase
+    .from("documents")
+    .select("file_path")
+    .eq("construction_project_id", id)
+    .eq("document_type", "photo")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let coverUrl: string | null = null;
+  if (coverDoc?.file_path) {
+    const { data: signed } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(coverDoc.file_path, 3600);
+    coverUrl = signed?.signedUrl || null;
+  }
+
   // Spend by category
   const byCategory = list.reduce<Record<string, number>>((acc, e: any) => {
     const k = e.category || "other";
@@ -80,6 +98,17 @@ export default async function ConstructionDetailPage({
         <span>›</span>
         <span className="text-stone-900">{project.name}</span>
       </div>
+
+      {coverUrl && (
+        <div className="relative h-48 sm:h-64 rounded-xl overflow-hidden mb-6 bg-stone-100">
+          <img
+            src={coverUrl}
+            alt={project.name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div className="min-w-0">
@@ -230,6 +259,10 @@ export default async function ConstructionDetailPage({
             </p>
           )}
         </div>
+      </div>
+
+      <div className="mt-3">
+        <PropertyPhotoGallery constructionProjectId={project.id} />
       </div>
     </div>
   );

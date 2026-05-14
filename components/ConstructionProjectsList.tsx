@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Search } from "lucide-react";
+import { Search, Building2 } from "lucide-react";
 import { parseDbDate } from "@/lib/dates";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -63,6 +63,7 @@ type Project = {
   expected_completion_date: string | null;
   created_at: string;
   updated_at: string | null;
+  cover_url?: string | null;
   construction_expenses?: { amount: number | string }[];
 };
 
@@ -331,46 +332,59 @@ function ProjectCard({ project: p }: { project: Project }) {
   const budget = Number(p.budget) || 0;
   const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   return (
-    <div className="bg-white border border-stone-200 rounded-xl p-4 hover:border-stone-300 flex flex-col">
+    <div className="bg-white border border-stone-200 rounded-xl overflow-hidden hover:border-stone-300 flex flex-col">
       <Link href={`/construction/${p.id}`} className="block flex-1">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="font-medium truncate">{p.name}</h3>
+        <div className="relative aspect-[16/9] bg-gradient-to-br from-stone-100 via-teal-50 to-stone-200">
+          {p.cover_url ? (
+            <img
+              src={p.cover_url}
+              alt={p.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-stone-400">
+              <Building2 className="w-10 h-10" />
+            </div>
+          )}
           <span
-            className={`text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap ${
+            className={`absolute top-2 right-2 text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm ${
               STATUS_COLOR[p.status] || "bg-stone-100"
             }`}
           >
             {STATUS_LABEL[p.status] || p.status}
           </span>
         </div>
-        {p.address && (
-          <p className="text-xs text-stone-500 mb-3 truncate">{p.address}</p>
-        )}
-        <div className="text-sm flex justify-between mb-1">
-          <span className="text-stone-500">Spent</span>
-          <span className="font-medium">${spent.toLocaleString()}</span>
-        </div>
-        <div className="text-sm flex justify-between mb-2">
-          <span className="text-stone-500">Budget</span>
-          <span>{budget > 0 ? `$${budget.toLocaleString()}` : "—"}</span>
-        </div>
-        {budget > 0 && (
-          <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full ${
-                pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-teal-600"
-              }`}
-              style={{ width: `${pct}%` }}
-            />
+        <div className="p-4">
+          <h3 className="font-medium truncate">{p.name}</h3>
+          {p.address && (
+            <p className="text-xs text-stone-500 mt-0.5 mb-3 truncate">{p.address}</p>
+          )}
+          <div className="text-sm flex justify-between mb-1">
+            <span className="text-stone-500">Spent</span>
+            <span className="font-medium">${spent.toLocaleString()}</span>
           </div>
-        )}
-        {p.expected_completion_date && (
-          <p className="text-[11px] text-stone-500 mt-3">
-            Target: {format(parseDbDate(p.expected_completion_date), "MMM d, yyyy")}
-          </p>
-        )}
+          <div className="text-sm flex justify-between mb-2">
+            <span className="text-stone-500">Budget</span>
+            <span>{budget > 0 ? `$${budget.toLocaleString()}` : "—"}</span>
+          </div>
+          {budget > 0 && (
+            <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${
+                  pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-teal-600"
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          )}
+          {p.expected_completion_date && (
+            <p className="text-[11px] text-stone-500 mt-3">
+              Target: {format(parseDbDate(p.expected_completion_date), "MMM d, yyyy")}
+            </p>
+          )}
+        </div>
       </Link>
-      <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between">
+      <div className="px-4 pb-3 pt-3 border-t border-stone-100 flex items-center justify-between">
         <Link
           href={`/construction/${p.id}#add-expense`}
           className="text-xs text-teal-700 hover:text-teal-800 font-medium"

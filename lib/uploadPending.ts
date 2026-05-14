@@ -9,6 +9,7 @@ const COLUMN: Record<string, string> = {
   // maintenance attachments are stored against the related property
   maintenance: "property_id",
   construction_expense: "construction_expense_id",
+  construction_project: "construction_project_id",
 };
 
 const DOC_TYPE: Record<string, string> = {
@@ -16,6 +17,7 @@ const DOC_TYPE: Record<string, string> = {
   payment: "receipt",
   maintenance: "photo",
   construction_expense: "receipt",
+  construction_project: "photo",
 };
 
 export type RecordType =
@@ -25,7 +27,8 @@ export type RecordType =
   | "tenant"
   | "lease"
   | "maintenance"
-  | "construction_expense";
+  | "construction_expense"
+  | "construction_project";
 
 export type PendingFile = File | { file: File; documentType?: string };
 

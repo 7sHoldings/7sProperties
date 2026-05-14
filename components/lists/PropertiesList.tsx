@@ -130,25 +130,40 @@ export default function PropertiesList({ properties }: { properties: Property[] 
               <Link
                 key={p.id}
                 href={`/properties/${p.id}`}
-                className="block bg-white border border-stone-200 rounded-xl p-4 hover:border-teal-300 hover:shadow-sm transition"
+                className="block bg-white border border-stone-200 rounded-xl overflow-hidden hover:border-teal-300 hover:shadow-sm transition"
               >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="min-w-0">
+                <div className="relative aspect-[16/9] bg-gradient-to-br from-stone-100 via-teal-50 to-stone-200">
+                  {p.cover_url ? (
+                    <img
+                      src={p.cover_url}
+                      alt={p.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-stone-400">
+                      <Building2 className="w-10 h-10" />
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2">
+                    <StatusBadge tone={tone}>{status}</StatusBadge>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <div className="min-w-0 mb-3">
                     <h3 className="font-medium truncate">{p.name}</h3>
                     <p className="text-xs text-stone-500 mt-0.5 truncate">{p.address}</p>
                   </div>
-                  <StatusBadge tone={tone}>{status}</StatusBadge>
-                </div>
-                <div className="text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Tenant</span>
-                    <span className="truncate ml-2">{activeLease?.tenants?.full_name || "—"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Rent</span>
-                    <span>
-                      {activeLease ? `$${Number(activeLease.monthly_rent).toLocaleString()}/mo` : "—"}
-                    </span>
+                  <div className="text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">Tenant</span>
+                      <span className="truncate ml-2">{activeLease?.tenants?.full_name || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">Rent</span>
+                      <span>
+                        {activeLease ? `$${Number(activeLease.monthly_rent).toLocaleString()}/mo` : "—"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </Link>
