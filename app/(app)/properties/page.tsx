@@ -13,14 +13,14 @@ export default async function PropertiesPage() {
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-medium">Properties</h1>
+          <h1 className="text-2xl font-medium">Rental Homes</h1>
           <p className="text-sm text-stone-500">{(properties || []).length} total</p>
         </div>
         <Link
           href="/properties/new"
           className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800 inline-flex items-center"
         >
-          + Add property
+          + Add rental home
         </Link>
       </div>
 

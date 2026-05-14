@@ -83,7 +83,7 @@ export default async function PropertyDetailPage({
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-2 text-sm text-stone-500 mb-4">
-        <Link href="/properties" className="hover:underline">Properties</Link>
+        <Link href="/properties" className="hover:underline">Rental Homes</Link>
         <span>›</span>
         <span className="text-stone-900 truncate">{property.name}</span>
       </div>

@@ -41,7 +41,7 @@ function Logo({ size = "md" }: { size?: "sm" | "md" }) {
       </div>
       <div className="leading-tight">
         <div className={`${size === "md" ? "text-base" : "text-sm"} font-semibold text-stone-900`}>
-          7s Rental
+          7s Properties
         </div>
         <div className="text-[10px] uppercase tracking-wider text-stone-500">Tenant portal</div>
       </div>

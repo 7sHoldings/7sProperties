@@ -72,8 +72,8 @@ function LoginForm() {
             7s
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-stone-900 leading-tight">7s Rental</h1>
-            <p className="text-xs text-stone-500">Property manager</p>
+            <h1 className="text-lg font-semibold text-stone-900 leading-tight">7s Properties</h1>
+            <p className="text-xs text-stone-500">Rentals &amp; construction</p>
           </div>
         </div>
 

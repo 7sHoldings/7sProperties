@@ -96,7 +96,7 @@ export default function ExpensesList({ expenses, properties }: Props) {
   const total = filtered.reduce((s, e) => s + Number(e.amount), 0);
 
   const propOptions = [
-    { value: "all", label: "All properties" },
+    { value: "all", label: "All rental homes" },
     ...properties.map((p) => ({ value: p.id, label: p.name })),
   ];
 

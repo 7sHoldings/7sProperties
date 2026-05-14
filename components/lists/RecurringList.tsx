@@ -80,7 +80,7 @@ export default function RecurringList({ templates, properties }: Props) {
   }, [templates, search, propertyId, status, frequency, sort]);
 
   const propOptions = [
-    { value: "all", label: "All properties" },
+    { value: "all", label: "All rental homes" },
     ...properties.map((p) => ({ value: p.id, label: p.name })),
   ];
 
