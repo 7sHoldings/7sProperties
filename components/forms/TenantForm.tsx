@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/client";
 import { tenantSchema, type TenantInput, type TenantValues } from "@/lib/schemas";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
+import PendingFilesInput from "@/components/PendingFilesInput";
+import { uploadPendingFiles, type PendingFile } from "@/lib/uploadPending";
 
 type Props = {
   mode: "create" | "edit";
@@ -21,6 +23,10 @@ export default function TenantForm({ mode, tenantId, initial }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const [units, setUnits] = useState<any[]>([]);
+  const [agreementFiles, setAgreementFiles] = useState<File[]>([]);
+  const [idFiles, setIdFiles] = useState<File[]>([]);
+  const [paystubFiles, setPaystubFiles] = useState<File[]>([]);
+  const [otherFiles, setOtherFiles] = useState<File[]>([]);
 
   const {
     register,
@@ -83,20 +89,59 @@ export default function TenantForm({ mode, tenantId, initial }: Props) {
         return;
       }
 
+      let leaseId: string | null = null;
       if (values.unit_id) {
-        await supabase.from("leases").insert({
-          owner_id: user.id,
-          unit_id: values.unit_id,
-          tenant_id: tenant.id,
-          start_date: values.start_date!,
-          end_date: values.end_date!,
-          monthly_rent: Number(values.monthly_rent),
-          security_deposit: values.security_deposit ?? null,
-          rent_due_day: values.rent_due_day ?? 1,
-        });
+        const { data: lease } = await supabase
+          .from("leases")
+          .insert({
+            owner_id: user.id,
+            unit_id: values.unit_id,
+            tenant_id: tenant.id,
+            start_date: values.start_date!,
+            end_date: values.end_date!,
+            monthly_rent: Number(values.monthly_rent),
+            security_deposit: values.security_deposit ?? null,
+            rent_due_day: values.rent_due_day ?? 1,
+          })
+          .select("id")
+          .single();
+        leaseId = lease?.id || null;
         await supabase.from("units").update({ status: "occupied" }).eq("id", values.unit_id);
       }
-      toast.success("Tenant added");
+
+      // Upload tenant-level docs (ID, paystubs, other) against the tenant.
+      // Upload the signed rental agreement against the lease if one was
+      // created, otherwise fall back to the tenant.
+      const tenantDocs: PendingFile[] = [
+        ...idFiles.map((file) => ({ file, documentType: "id_document" })),
+        ...paystubFiles.map((file) => ({ file, documentType: "paystub" })),
+        ...otherFiles.map((file) => ({ file, documentType: "other" })),
+      ];
+      if (!leaseId) {
+        tenantDocs.push(
+          ...agreementFiles.map((file) => ({ file, documentType: "lease" }))
+        );
+      }
+      if (tenantDocs.length > 0) {
+        await uploadPendingFiles(supabase, user.id, tenant.id, "tenant", tenantDocs);
+      }
+      if (leaseId && agreementFiles.length > 0) {
+        await uploadPendingFiles(
+          supabase,
+          user.id,
+          leaseId,
+          "lease",
+          agreementFiles.map((file) => ({ file, documentType: "lease" }))
+        );
+      }
+
+      const totalFiles =
+        agreementFiles.length + idFiles.length + paystubFiles.length + otherFiles.length;
+      toast.success(
+        totalFiles > 0
+          ? `Tenant added with ${totalFiles} file${totalFiles === 1 ? "" : "s"}`
+          : "Tenant added"
+      );
       router.push("/tenants");
       router.refresh();
     } else {
@@ -233,6 +278,39 @@ export default function TenantForm({ mode, tenantId, initial }: Props) {
               </div>
             </>
           )}
+
+          <div className="pt-4 border-t border-stone-100 space-y-3">
+            <div>
+              <h2 className="text-sm font-medium text-stone-500">Onboarding documents</h2>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Optional. Attach now or upload later from the tenant page.
+              </p>
+            </div>
+            <PendingFilesInput
+              files={agreementFiles}
+              onChange={setAgreementFiles}
+              label="Signed rental agreement"
+              hint="The lease the tenant signed. PDF or images."
+            />
+            <PendingFilesInput
+              files={idFiles}
+              onChange={setIdFiles}
+              label="Government ID"
+              hint="Driver's license, passport, or other photo ID."
+            />
+            <PendingFilesInput
+              files={paystubFiles}
+              onChange={setPaystubFiles}
+              label="Paystubs / income proof"
+              hint="Recent paystubs, tax forms, or employment letter."
+            />
+            <PendingFilesInput
+              files={otherFiles}
+              onChange={setOtherFiles}
+              label="Other documents"
+              hint="Rental application, references, anything else."
+            />
+          </div>
         </>
       )}
 

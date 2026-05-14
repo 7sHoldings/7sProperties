@@ -16,6 +16,7 @@ import { Input, Select, Textarea } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
 import Drawer from "@/components/ui/Drawer";
 import PendingFilesInput from "@/components/PendingFilesInput";
+import DocumentUpload from "@/components/DocumentUpload";
 import { uploadPendingFiles } from "@/lib/uploadPending";
 
 export const CONSTRUCTION_CATEGORIES = [
@@ -326,12 +327,16 @@ export default function ConstructionExpenseForm({
 
           <Textarea label="Notes" rows={2} error={errors.notes?.message} {...register("notes")} />
 
-          <PendingFilesInput
-            files={pendingFiles}
-            onChange={setPendingFiles}
-            label="Receipt / photo"
-            hint="Attach invoice, receipt, or progress photo. Max 10 MB each."
-          />
+          {mode === "edit" && initial ? (
+            <DocumentUpload constructionExpenseId={initial.id} />
+          ) : (
+            <PendingFilesInput
+              files={pendingFiles}
+              onChange={setPendingFiles}
+              label="Receipt / photo"
+              hint="Attach invoice, receipt, or progress photo. Max 10 MB each."
+            />
+          )}
         </div>
 
         <footer className="border-t border-stone-200 px-5 py-3 bg-stone-50 flex flex-col-reverse sm:flex-row sm:items-center gap-2">

@@ -18,28 +18,38 @@ const DOC_TYPE: Record<string, string> = {
   construction_expense: "receipt",
 };
 
+export type RecordType =
+  | "expense"
+  | "payment"
+  | "property"
+  | "tenant"
+  | "lease"
+  | "maintenance"
+  | "construction_expense";
+
+export type PendingFile = File | { file: File; documentType?: string };
+
+function normalize(files: PendingFile[]): { file: File; documentType?: string }[] {
+  return files.map((f) => (f instanceof File ? { file: f } : f));
+}
+
 /**
  * Upload pending files to Supabase Storage and create rows in `documents`
- * linking them to the just-created record.
+ * linking them to the just-created record. Pass either plain `File[]` (all
+ * tagged with the record-type default) or `{ file, documentType }[]` to tag
+ * each file individually (e.g. tenant onboarding: lease vs id_document).
  */
 export async function uploadPendingFiles(
   supabase: SupabaseClient,
   userId: string,
   recordId: string,
-  recordType:
-    | "expense"
-    | "payment"
-    | "property"
-    | "tenant"
-    | "lease"
-    | "maintenance"
-    | "construction_expense",
-  files: File[]
+  recordType: RecordType,
+  files: PendingFile[]
 ) {
   const column = COLUMN[recordType];
-  const docType = DOC_TYPE[recordType] || "other";
+  const defaultDocType = DOC_TYPE[recordType] || "other";
 
-  for (const file of files) {
+  for (const { file, documentType } of normalize(files)) {
     const path = `${userId}/${column}/${recordId}/${Date.now()}-${file.name}`;
     const { error: upErr } = await supabase.storage
       .from("documents")
@@ -51,7 +61,7 @@ export async function uploadPendingFiles(
     await supabase.from("documents").insert({
       owner_id: userId,
       [column]: recordId,
-      document_type: docType,
+      document_type: documentType || defaultDocType,
       file_name: file.name,
       file_path: path,
       file_size: file.size,

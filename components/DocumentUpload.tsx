@@ -24,6 +24,7 @@ type Props = {
   leaseId?: string;
   expenseId?: string;
   paymentId?: string;
+  constructionExpenseId?: string;
   compact?: boolean;
 };
 
@@ -46,12 +47,15 @@ export default function DocumentUpload(props: Props) {
         ? "lease_id"
         : props.expenseId
           ? "expense_id"
-          : "payment_id";
+          : props.constructionExpenseId
+            ? "construction_expense_id"
+            : "payment_id";
   const filterValue =
     props.propertyId ||
     props.tenantId ||
     props.leaseId ||
     props.expenseId ||
+    props.constructionExpenseId ||
     props.paymentId ||
     "";
 
@@ -157,9 +161,11 @@ export default function DocumentUpload(props: Props) {
           onChange={(e) => setDocType(e.target.value)}
           className="px-2 py-1.5 text-sm border border-stone-200 rounded-md"
         >
-          <option value="lease">Lease</option>
-          <option value="receipt">Receipt</option>
+          <option value="lease">Lease / Rental agreement</option>
+          <option value="rental_application">Rental application</option>
           <option value="id_document">ID document</option>
+          <option value="paystub">Paystub</option>
+          <option value="receipt">Receipt</option>
           <option value="insurance">Insurance</option>
           <option value="tax_document">Tax document</option>
           <option value="photo">Photo</option>
@@ -190,7 +196,7 @@ export default function DocumentUpload(props: Props) {
                 <div className="truncate">{d.file_name}</div>
                 <div className="text-xs text-stone-500">
                   {d.document_type && (
-                    <span className="capitalize">{d.document_type.replace("_", " ")}</span>
+                    <span className="capitalize">{d.document_type.replace(/_/g, " ")}</span>
                   )}
                   {d.file_size ? ` · ${formatSize(d.file_size)}` : ""}
                   {` · ${format(new Date(d.created_at), "MMM d, yyyy")}`}
