@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { startOfMonth, format } from "date-fns";
@@ -159,7 +160,9 @@ export default async function PaymentsPage() {
       )}
 
       <h2 className="text-lg font-medium mb-3">Payment history</h2>
-      <PaymentsList payments={recentPayments} properties={properties} />
+      <Suspense fallback={null}>
+        <PaymentsList payments={recentPayments} properties={properties} />
+      </Suspense>
     </div>
   );
 }
