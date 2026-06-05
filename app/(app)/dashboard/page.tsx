@@ -41,6 +41,7 @@ export default async function DashboardPage() {
     openMaintRes,
     constructionProjectsRes,
     constructionExpensesYtdRes,
+    monthExpensesRes,
   ] = await Promise.all([
     supabase.from("properties").select("id, name"),
     supabase.from("units").select("id, status"),
@@ -77,6 +78,11 @@ export default async function DashboardPage() {
       .from("construction_expenses")
       .select("amount, expense_date")
       .gte("expense_date", yearStart),
+    supabase
+      .from("expenses")
+      .select("amount, expense_date")
+      .gte("expense_date", monthStart)
+      .lte("expense_date", monthEnd),
   ]);
 
   const properties = propsRes.data || [];
@@ -92,6 +98,13 @@ export default async function DashboardPage() {
   const expectedRent = activeLeases.reduce((sum, l) => sum + Number(l.monthly_rent), 0);
   const collectedRent = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = Math.max(0, expectedRent - collectedRent);
+  const monthExpenses = (monthExpensesRes.data || []).reduce(
+    (s: number, e: any) => s + Number(e.amount),
+    0
+  );
+  const monthNet = collectedRent - monthExpenses;
+  const collectedPct =
+    expectedRent > 0 ? Math.min(100, Math.round((collectedRent / expectedRent) * 100)) : 0;
 
   // ── Construction KPIs ──
   const constructionProjects = (constructionProjectsRes.data || []) as any[];
@@ -323,20 +336,82 @@ export default async function DashboardPage() {
 
       {/* RENTALS section */}
       <SectionHeader title="Rentals" href="/properties" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+
+      {/* Combined "This month" panel: expected vs collected, plus monthly review */}
+      <div className="bg-white border border-stone-200 rounded-xl p-4 sm:p-5 mb-3">
+        <div className="flex items-baseline justify-between mb-4">
+          <div>
+            <div className="text-sm font-medium text-stone-900">This month</div>
+            <div className="text-xs text-stone-500">{format(new Date(), "MMMM yyyy")}</div>
+          </div>
+          {outstanding > 0 ? (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+              ${outstanding.toLocaleString()} outstanding
+            </span>
+          ) : expectedRent > 0 ? (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-800 border border-green-200">
+              All rent collected
+            </span>
+          ) : null}
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-3">
+          <MiniStat label="Expected rent" value={`$${expectedRent.toLocaleString()}`} />
+          <MiniStat
+            label="Collected"
+            value={`$${collectedRent.toLocaleString()}`}
+            tone={outstanding > 0 ? "warning" : "success"}
+          />
+          <MiniStat
+            label="Outstanding"
+            value={`$${outstanding.toLocaleString()}`}
+            tone={outstanding > 0 ? "warning" : undefined}
+          />
+        </div>
+
+        {expectedRent > 0 && (
+          <div className="mb-4">
+            <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${collectedPct >= 100 ? "bg-green-500" : "bg-teal-600"}`}
+                style={{ width: `${collectedPct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] text-stone-500 mt-1">
+              <span>{collectedPct}% collected</span>
+              <span>Goal ${expectedRent.toLocaleString()}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="border-t border-stone-100 pt-3 grid grid-cols-3 gap-3 sm:gap-4">
+          <MiniStat
+            label="Total rent recorded"
+            value={`$${collectedRent.toLocaleString()}`}
+          />
+          <MiniStat
+            label="Total expenses recorded"
+            value={`$${monthExpenses.toLocaleString()}`}
+          />
+          <MiniStat
+            label="Net this month"
+            value={`$${monthNet.toLocaleString()}`}
+            tone={monthNet > 0 ? "success" : monthNet < 0 ? "warning" : undefined}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
         <KpiCard
           label="Rental homes"
           value={properties.length.toString()}
           sub={`${occupiedUnits}/${totalUnits} units occupied`}
         />
-        <KpiCard label="Expected rent" value={`$${expectedRent.toLocaleString()}`} sub="This month" />
         <KpiCard
-          label="Collected"
-          value={`$${collectedRent.toLocaleString()}`}
-          sub={outstanding > 0 ? `$${outstanding.toLocaleString()} outstanding` : "All collected"}
-          tone={outstanding > 0 ? "warning" : "success"}
+          label="Active leases"
+          value={activeLeases.length.toString()}
+          sub="Currently active"
         />
-        <KpiCard label="Active leases" value={activeLeases.length.toString()} sub="Currently active" />
       </div>
 
       {/* YTD financial KPIs (rentals) */}
@@ -467,6 +542,31 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "success" | "warning";
+}) {
+  const valueColor =
+    tone === "success"
+      ? "text-green-700"
+      : tone === "warning"
+        ? "text-amber-700"
+        : "text-stone-900";
+  return (
+    <div>
+      <div className="text-[11px] sm:text-xs text-stone-500 uppercase tracking-wider mb-0.5">
+        {label}
+      </div>
+      <div className={`text-lg sm:text-xl font-medium ${valueColor}`}>{value}</div>
     </div>
   );
 }
