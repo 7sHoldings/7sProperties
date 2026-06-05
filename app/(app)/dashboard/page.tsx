@@ -7,23 +7,59 @@ import {
   subMonths,
   startOfYear,
   differenceInCalendarDays,
+  parse,
 } from "date-fns";
 import { parseDbDate } from "@/lib/dates";
-import { AlertTriangle, CheckCircle2, Circle, HardHat } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  HardHat,
+  ChevronLeft,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+} from "lucide-react";
 import LeaseAlerts from "@/components/LeaseAlerts";
 import ActivityFeed from "@/components/ActivityFeed";
 import { CashflowChart, CategoryPieChart } from "@/components/DashboardCharts";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   const supabase = await createClient();
 
   // Lazy-tick expired leases (no-op if RPC doesn't exist or none past end_date)
   await supabase.rpc("expire_overdue_leases").throwOnError().then(() => {}, () => {});
 
-  const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
-  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
-  const yearStart = format(startOfYear(new Date()), "yyyy-MM-dd");
-  const cashflowSince = format(startOfMonth(subMonths(new Date(), 11)), "yyyy-MM-dd");
+  // Selected month from ?month=YYYY-MM, default to current month. Clamp to a
+  // real Date so a bogus param doesn't crash the page.
+  const { month: monthParam } = await searchParams;
+  let selectedDate = new Date();
+  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+    const parsed = parse(`${monthParam}-01`, "yyyy-MM-dd", new Date());
+    if (!isNaN(parsed.getTime())) selectedDate = parsed;
+  }
+
+  const selStart = startOfMonth(selectedDate);
+  const selEnd = endOfMonth(selectedDate);
+  const prevDate = subMonths(selectedDate, 1);
+  const prevStart = startOfMonth(prevDate);
+  const prevEnd = endOfMonth(prevDate);
+
+  const selMonthStr = format(selStart, "yyyy-MM-dd");
+  const selMonthEndStr = format(selEnd, "yyyy-MM-dd");
+  const prevMonthStr = format(prevStart, "yyyy-MM-dd");
+  const prevMonthEndStr = format(prevEnd, "yyyy-MM-dd");
+  const yearStart = format(startOfYear(selectedDate), "yyyy-MM-dd");
+  const cashflowSince = format(startOfMonth(subMonths(selectedDate, 11)), "yyyy-MM-dd");
+
+  // For drilldown links into PaymentsList / ExpensesList, which expect
+  // numeric year + 0-indexed month strings.
+  const selYearParam = String(selStart.getFullYear());
+  const selMonthParam = String(selStart.getMonth());
 
   const [
     propsRes,
@@ -42,6 +78,8 @@ export default async function DashboardPage() {
     constructionProjectsRes,
     constructionExpensesYtdRes,
     monthExpensesRes,
+    prevMonthPaymentsRes,
+    prevMonthExpensesRes,
   ] = await Promise.all([
     supabase.from("properties").select("id, name"),
     supabase.from("units").select("id, status"),
@@ -52,8 +90,8 @@ export default async function DashboardPage() {
     supabase
       .from("payments")
       .select("id, amount, payment_date, lease_id, leases(tenants(full_name))")
-      .gte("for_month", monthStart)
-      .lte("for_month", monthEnd)
+      .gte("for_month", selMonthStr)
+      .lte("for_month", selMonthEndStr)
       .order("payment_date", { ascending: false }),
     supabase
       .from("expenses")
@@ -81,8 +119,18 @@ export default async function DashboardPage() {
     supabase
       .from("expenses")
       .select("amount, expense_date")
-      .gte("expense_date", monthStart)
-      .lte("expense_date", monthEnd),
+      .gte("expense_date", selMonthStr)
+      .lte("expense_date", selMonthEndStr),
+    supabase
+      .from("payments")
+      .select("amount, for_month")
+      .gte("for_month", prevMonthStr)
+      .lte("for_month", prevMonthEndStr),
+    supabase
+      .from("expenses")
+      .select("amount, expense_date")
+      .gte("expense_date", prevMonthStr)
+      .lte("expense_date", prevMonthEndStr),
   ]);
 
   const properties = propsRes.data || [];
@@ -105,6 +153,24 @@ export default async function DashboardPage() {
   const monthNet = collectedRent - monthExpenses;
   const collectedPct =
     expectedRent > 0 ? Math.min(100, Math.round((collectedRent / expectedRent) * 100)) : 0;
+
+  // Previous month + YTD totals for the comparison strip
+  const prevMonthCollected = (prevMonthPaymentsRes.data || []).reduce(
+    (s: number, p: any) => s + Number(p.amount),
+    0
+  );
+  const prevMonthExpenses = (prevMonthExpensesRes.data || []).reduce(
+    (s: number, e: any) => s + Number(e.amount),
+    0
+  );
+  const prevMonthNet = prevMonthCollected - prevMonthExpenses;
+
+  const isCurrentMonth =
+    selStart.getFullYear() === new Date().getFullYear() &&
+    selStart.getMonth() === new Date().getMonth();
+  const nextMonth = startOfMonth(subMonths(selectedDate, -1));
+  const prevMonthLabel = format(prevStart, "MMM yyyy");
+  const ytdLabel = `${selStart.getFullYear()} YTD`;
 
   // ── Construction KPIs ──
   const constructionProjects = (constructionProjectsRes.data || []) as any[];
@@ -188,7 +254,7 @@ export default async function DashboardPage() {
   // Smart alerts
   const alerts: { type: "warn" | "info"; text: string; href: string }[] = [];
 
-  if (outstanding > 0) {
+  if (outstanding > 0 && isCurrentMonth) {
     alerts.push({
       type: "warn",
       text: `$${outstanding.toLocaleString()} in rent still outstanding for ${format(new Date(), "MMMM")}.`,
@@ -245,12 +311,41 @@ export default async function DashboardPage() {
   const onboardingComplete = onboarding.every((o) => o.done);
   const completedSteps = onboarding.filter((o) => o.done).length;
 
+  const prevHref = `/dashboard?month=${format(prevStart, "yyyy-MM")}`;
+  const nextHref = `/dashboard?month=${format(nextMonth, "yyyy-MM")}`;
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-medium">Dashboard</h1>
-          <p className="text-sm text-stone-500">{format(new Date(), "MMMM yyyy")}</p>
+          <div className="flex items-center gap-1 mt-1">
+            <Link
+              href={prevHref}
+              className="p-1 -ml-1 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded"
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Link>
+            <span className="text-sm text-stone-700 font-medium px-1">
+              {format(selStart, "MMMM yyyy")}
+            </span>
+            <Link
+              href={nextHref}
+              className="p-1 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded"
+              aria-label="Next month"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+            {!isCurrentMonth && (
+              <Link
+                href="/dashboard"
+                className="ml-1 px-2 py-0.5 text-xs text-teal-700 hover:bg-teal-50 rounded border border-teal-200"
+              >
+                Today
+              </Link>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           <Link
@@ -337,18 +432,20 @@ export default async function DashboardPage() {
       {/* RENTALS section */}
       <SectionHeader title="Rentals" href="/properties" />
 
-      {/* Combined "This month" panel: expected vs collected, plus monthly review */}
+      {/* Combined "Selected month" panel: expected vs collected, plus monthly review */}
       <div className="bg-white border border-stone-200 rounded-xl p-4 sm:p-5 mb-3">
         <div className="flex items-baseline justify-between mb-4">
           <div>
-            <div className="text-sm font-medium text-stone-900">This month</div>
-            <div className="text-xs text-stone-500">{format(new Date(), "MMMM yyyy")}</div>
+            <div className="text-sm font-medium text-stone-900">
+              {isCurrentMonth ? "This month" : "Selected month"}
+            </div>
+            <div className="text-xs text-stone-500">{format(selStart, "MMMM yyyy")}</div>
           </div>
           {outstanding > 0 ? (
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
               ${outstanding.toLocaleString()} outstanding
             </span>
-          ) : expectedRent > 0 ? (
+          ) : expectedRent > 0 && isCurrentMonth ? (
             <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-800 border border-green-200">
               All rent collected
             </span>
@@ -361,6 +458,8 @@ export default async function DashboardPage() {
             label="Collected"
             value={`$${collectedRent.toLocaleString()}`}
             tone={outstanding > 0 ? "warning" : "success"}
+            delta={diffFrom(collectedRent, prevMonthCollected)}
+            href={`/payments?year=${selYearParam}&month=${selMonthParam}`}
           />
           <MiniStat
             label="Outstanding"
@@ -388,15 +487,36 @@ export default async function DashboardPage() {
           <MiniStat
             label="Total rent recorded"
             value={`$${collectedRent.toLocaleString()}`}
+            delta={diffFrom(collectedRent, prevMonthCollected)}
+            href={`/payments?year=${selYearParam}&month=${selMonthParam}`}
           />
           <MiniStat
             label="Total expenses recorded"
             value={`$${monthExpenses.toLocaleString()}`}
+            delta={diffFrom(monthExpenses, prevMonthExpenses, true)}
+            href={`/expenses?year=${selYearParam}&month=${selMonthParam}`}
           />
           <MiniStat
-            label="Net this month"
+            label={`Net ${isCurrentMonth ? "this" : "for"} month`}
             value={`$${monthNet.toLocaleString()}`}
             tone={monthNet > 0 ? "success" : monthNet < 0 ? "warning" : undefined}
+            delta={diffFrom(monthNet, prevMonthNet)}
+          />
+        </div>
+
+        {/* Comparison strip: previous month + YTD totals */}
+        <div className="mt-4 pt-3 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <ComparisonRow
+            label={prevMonthLabel}
+            rent={prevMonthCollected}
+            expenses={prevMonthExpenses}
+            net={prevMonthNet}
+          />
+          <ComparisonRow
+            label={ytdLabel}
+            rent={ytdIncome}
+            expenses={ytdExpenses}
+            net={ytdIncome - ytdExpenses}
           />
         </div>
       </div>
@@ -419,18 +539,21 @@ export default async function DashboardPage() {
         <KpiCard
           label="YTD rent income"
           value={`$${ytdIncome.toLocaleString()}`}
-          sub={`${new Date().getFullYear()} year-to-date`}
+          sub={`${selStart.getFullYear()} year-to-date`}
           tone="success"
+          href={`/payments?year=${selYearParam}`}
         />
         <KpiCard
           label="YTD expenses"
           value={`$${ytdExpenses.toLocaleString()}`}
           sub="Including maintenance"
+          href={`/expenses?year=${selYearParam}`}
         />
         <KpiCard
           label="Profit taken out"
           value={`$${ytdDistributions.toLocaleString()}`}
           sub="YTD distributions"
+          href="/distributions"
         />
         <KpiCard
           label="Available to distribute"
@@ -546,14 +669,36 @@ export default async function DashboardPage() {
   );
 }
 
+// Difference between two amounts as a signed display + tone hint. For
+// "expense-like" metrics (lower is better), invert the tone.
+function diffFrom(
+  curr: number,
+  prev: number,
+  expenseLike = false
+): { delta: number; pct: number | null; tone: "good" | "bad" | "neutral" } | null {
+  if (prev === 0 && curr === 0) return null;
+  const delta = curr - prev;
+  const pct = prev === 0 ? null : Math.round((delta / Math.abs(prev)) * 100);
+  let tone: "good" | "bad" | "neutral" = "neutral";
+  if (delta !== 0) {
+    const up = delta > 0;
+    tone = (expenseLike ? !up : up) ? "good" : "bad";
+  }
+  return { delta, pct, tone };
+}
+
 function MiniStat({
   label,
   value,
   tone,
+  delta,
+  href,
 }: {
   label: string;
   value: string;
   tone?: "success" | "warning";
+  delta?: ReturnType<typeof diffFrom> | null;
+  href?: string;
 }) {
   const valueColor =
     tone === "success"
@@ -561,12 +706,81 @@ function MiniStat({
       : tone === "warning"
         ? "text-amber-700"
         : "text-stone-900";
-  return (
-    <div>
+  const body = (
+    <>
       <div className="text-[11px] sm:text-xs text-stone-500 uppercase tracking-wider mb-0.5">
         {label}
       </div>
       <div className={`text-lg sm:text-xl font-medium ${valueColor}`}>{value}</div>
+      {delta && delta.delta !== 0 && (
+        <div
+          className={`mt-1 inline-flex items-center gap-0.5 text-[10px] ${
+            delta.tone === "good"
+              ? "text-green-700"
+              : delta.tone === "bad"
+                ? "text-amber-700"
+                : "text-stone-500"
+          }`}
+          title={`vs previous month`}
+        >
+          {delta.delta > 0 ? (
+            <TrendingUp className="w-3 h-3" />
+          ) : (
+            <TrendingDown className="w-3 h-3" />
+          )}
+          {delta.delta > 0 ? "+" : ""}${Math.abs(delta.delta).toLocaleString()}
+          {delta.pct !== null && (
+            <span className="text-stone-400 ml-0.5">
+              ({delta.pct > 0 ? "+" : ""}
+              {delta.pct}%)
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="block -m-1 p-1 rounded-md hover:bg-stone-50 transition-colors"
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div>{body}</div>;
+}
+
+function ComparisonRow({
+  label,
+  rent,
+  expenses,
+  net,
+}: {
+  label: string;
+  rent: number;
+  expenses: number;
+  net: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-stone-600">
+      <span className="font-medium text-stone-700">{label}:</span>
+      <span>
+        Rent <span className="text-stone-900 font-medium">${rent.toLocaleString()}</span>
+      </span>
+      <span>
+        Expenses <span className="text-stone-900 font-medium">${expenses.toLocaleString()}</span>
+      </span>
+      <span>
+        Net{" "}
+        <span
+          className={`font-medium ${net > 0 ? "text-green-700" : net < 0 ? "text-amber-700" : "text-stone-900"}`}
+        >
+          ${net.toLocaleString()}
+        </span>
+      </span>
     </div>
   );
 }
@@ -598,19 +812,32 @@ function KpiCard({
   value,
   sub,
   tone,
+  href,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "success" | "warning";
+  href?: string;
 }) {
   const subColor =
     tone === "success" ? "text-green-700" : tone === "warning" ? "text-amber-700" : "text-stone-500";
-  return (
-    <div className="bg-white border border-stone-200 rounded-xl p-4">
+  const body = (
+    <>
       <div className="text-sm text-stone-500 mb-1">{label}</div>
       <div className="text-2xl font-medium">{value}</div>
       {sub && <div className={`text-xs mt-1 ${subColor}`}>{sub}</div>}
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="block bg-white border border-stone-200 rounded-xl p-4 hover:border-teal-300 hover:shadow-sm transition"
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className="bg-white border border-stone-200 rounded-xl p-4">{body}</div>;
 }

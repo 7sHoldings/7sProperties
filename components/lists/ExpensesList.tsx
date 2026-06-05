@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Receipt } from "lucide-react";
 import ListControls from "@/components/ui/ListControls";
@@ -48,11 +49,14 @@ type Props = {
 };
 
 export default function ExpensesList({ expenses, properties }: Props) {
+  const params = useSearchParams();
+  const initialYear = params?.get("year") || "all";
+  const initialMonth = params?.get("month") || "all";
   const [search, setSearch] = useState("");
   const [propertyId, setPropertyId] = useState("all");
   const [category, setCategory] = useState("all");
-  const [year, setYear] = useState("all");
-  const [month, setMonth] = useState("all");
+  const [year, setYear] = useState(initialYear);
+  const [month, setMonth] = useState(initialMonth);
   const [sort, setSort] = useState("date_desc");
 
   const years = useMemo(() => {

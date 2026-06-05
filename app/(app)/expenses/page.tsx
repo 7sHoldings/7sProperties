@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import ExpensesList from "@/components/lists/ExpensesList";
@@ -33,7 +34,9 @@ export default async function ExpensesPage() {
         </Link>
       </div>
 
-      <ExpensesList expenses={expenses} properties={properties} />
+      <Suspense fallback={null}>
+        <ExpensesList expenses={expenses} properties={properties} />
+      </Suspense>
     </div>
   );
 }

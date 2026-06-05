@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import ListControls from "@/components/ui/ListControls";
 import DeleteButton from "@/components/DeleteButton";
@@ -47,11 +48,14 @@ type Props = {
 };
 
 export default function PaymentsList({ payments, properties }: Props) {
+  const params = useSearchParams();
+  const initialYear = params?.get("year") || "all";
+  const initialMonth = params?.get("month") || "all";
   const [search, setSearch] = useState("");
   const [propertyId, setPropertyId] = useState("all");
   const [method, setMethod] = useState("all");
-  const [year, setYear] = useState("all");
-  const [month, setMonth] = useState("all");
+  const [year, setYear] = useState(initialYear);
+  const [month, setMonth] = useState(initialMonth);
   const [sort, setSort] = useState("date_desc");
 
   const years = useMemo(() => {
