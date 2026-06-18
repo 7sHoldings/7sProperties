@@ -99,7 +99,7 @@ export default async function DashboardPage({
       .order("expense_date", { ascending: false })
       .limit(5),
     supabase.from("payments").select("amount, for_month").gte("for_month", yearStart),
-    supabase.from("expenses").select("amount, expense_date").gte("expense_date", yearStart),
+    supabase.from("expenses").select("amount, category, expense_date").gte("expense_date", yearStart),
     supabase.from("distributions").select("amount, type").gte("distribution_date", yearStart),
     supabase.from("payments").select("amount, for_month").gte("for_month", cashflowSince),
     supabase.from("expenses").select("amount, expense_date").gte("expense_date", cashflowSince),
@@ -118,7 +118,7 @@ export default async function DashboardPage({
       .gte("expense_date", yearStart),
     supabase
       .from("expenses")
-      .select("amount, expense_date")
+      .select("amount, category, expense_date")
       .gte("expense_date", selMonthStr)
       .lte("expense_date", selMonthEndStr),
     supabase
@@ -128,7 +128,7 @@ export default async function DashboardPage({
       .lte("for_month", prevMonthEndStr),
     supabase
       .from("expenses")
-      .select("amount, expense_date")
+      .select("amount, category, expense_date")
       .gte("expense_date", prevMonthStr)
       .lte("expense_date", prevMonthEndStr),
   ]);
@@ -146,24 +146,44 @@ export default async function DashboardPage({
   const expectedRent = activeLeases.reduce((sum, l) => sum + Number(l.monthly_rent), 0);
   const collectedRent = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = Math.max(0, expectedRent - collectedRent);
-  const monthExpenses = (monthExpensesRes.data || []).reduce(
-    (s: number, e: any) => s + Number(e.amount),
-    0
-  );
-  const monthNet = collectedRent - monthExpenses;
+
+  // ── P&L splits ──
+  // Operating expenses (OpEx) = everything except mortgage. Mortgage payments
+  // are debt service and are shown below NOI so Net Operating Income reflects
+  // the property's true earning power.
+  function splitExpenses(rows: any[]) {
+    let opEx = 0;
+    let debtService = 0;
+    for (const r of rows || []) {
+      const amt = Number(r.amount);
+      if (r.category === "mortgage") debtService += amt;
+      else opEx += amt;
+    }
+    return { opEx, debtService, total: opEx + debtService };
+  }
+
+  const monthSplit = splitExpenses(monthExpensesRes.data || []);
+  const monthExpenses = monthSplit.total;
+  const monthOpEx = monthSplit.opEx;
+  const monthDebtService = monthSplit.debtService;
+  const monthNOI = collectedRent - monthOpEx;
+  const monthActualProfit = monthNOI - monthDebtService;
+  const monthMargin =
+    collectedRent > 0 ? Math.round((monthNOI / collectedRent) * 100) : 0;
+
   const collectedPct =
     expectedRent > 0 ? Math.min(100, Math.round((collectedRent / expectedRent) * 100)) : 0;
 
-  // Previous month + YTD totals for the comparison strip
+  // Previous month splits for the delta chips
   const prevMonthCollected = (prevMonthPaymentsRes.data || []).reduce(
     (s: number, p: any) => s + Number(p.amount),
     0
   );
-  const prevMonthExpenses = (prevMonthExpensesRes.data || []).reduce(
-    (s: number, e: any) => s + Number(e.amount),
-    0
-  );
-  const prevMonthNet = prevMonthCollected - prevMonthExpenses;
+  const prevSplit = splitExpenses(prevMonthExpensesRes.data || []);
+  const prevMonthOpEx = prevSplit.opEx;
+  const prevMonthDebtService = prevSplit.debtService;
+  const prevMonthNOI = prevMonthCollected - prevMonthOpEx;
+  const prevMonthActualProfit = prevMonthNOI - prevMonthDebtService;
 
   const isCurrentMonth =
     selStart.getFullYear() === new Date().getFullYear() &&
@@ -215,8 +235,14 @@ export default async function DashboardPage({
   const ytdDistributions = (ytdDistRes.data || [])
     .filter((d: any) => d.type !== "contribution")
     .reduce((s, d: any) => s + Number(d.amount), 0);
-  const ytdNet = ytdIncome - ytdExpenses;
-  const available = ytdNet - ytdDistributions;
+
+  // YTD P&L splits
+  const ytdSplit = splitExpenses(ytdExpensesRes.data || []);
+  const ytdOpEx = ytdSplit.opEx;
+  const ytdDebtService = ytdSplit.debtService;
+  const ytdNOI = ytdIncome - ytdOpEx;
+  const ytdActualProfit = ytdNOI - ytdDebtService;
+  const ytdMargin = ytdIncome > 0 ? Math.round((ytdNOI / ytdIncome) * 100) : 0;
 
   // Cashflow chart data: last 12 months
   const cashflowMap: Record<string, { income: number; expenses: number }> = {};
@@ -483,41 +509,78 @@ export default async function DashboardPage({
           </div>
         )}
 
-        <div className="border-t border-stone-100 pt-3 grid grid-cols-3 gap-3 sm:gap-4">
-          <MiniStat
-            label="Total rent recorded"
-            value={`$${collectedRent.toLocaleString()}`}
-            delta={diffFrom(collectedRent, prevMonthCollected)}
-            href={`/payments?year=${selYearParam}&month=${selMonthParam}`}
-          />
-          <MiniStat
-            label="Total expenses recorded"
-            value={`$${monthExpenses.toLocaleString()}`}
-            delta={diffFrom(monthExpenses, prevMonthExpenses, true)}
-            href={`/expenses?year=${selYearParam}&month=${selMonthParam}`}
-          />
-          <MiniStat
-            label={`Net ${isCurrentMonth ? "this" : "for"} month`}
-            value={`$${monthNet.toLocaleString()}`}
-            tone={monthNet > 0 ? "success" : monthNet < 0 ? "warning" : undefined}
-            delta={diffFrom(monthNet, prevMonthNet)}
-          />
-        </div>
+        {/* P&L statement for the selected month + YTD column */}
+        <div className="border-t border-stone-100 pt-4">
+          <div className="flex items-baseline justify-between mb-2">
+            <h3 className="text-xs font-semibold text-stone-600 uppercase tracking-wider">
+              Profit &amp; Loss
+            </h3>
+            <span className="text-[11px] text-stone-500">
+              Margin {monthMargin}% · YTD {ytdMargin}%
+            </span>
+          </div>
+          <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto] gap-x-3 sm:gap-x-6 text-sm">
+            <div className="hidden sm:block" />
+            <div className="hidden sm:block text-[11px] text-stone-500 uppercase tracking-wider text-right">
+              {format(selStart, "MMM yyyy")}
+            </div>
+            <div className="hidden sm:block text-[11px] text-stone-500 uppercase tracking-wider text-right">
+              {ytdLabel}
+            </div>
 
-        {/* Comparison strip: previous month + YTD totals */}
-        <div className="mt-4 pt-3 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-          <ComparisonRow
-            label={prevMonthLabel}
-            rent={prevMonthCollected}
-            expenses={prevMonthExpenses}
-            net={prevMonthNet}
-          />
-          <ComparisonRow
-            label={ytdLabel}
-            rent={ytdIncome}
-            expenses={ytdExpenses}
-            net={ytdIncome - ytdExpenses}
-          />
+            <PnlLine
+              label="Rent income"
+              monthValue={collectedRent}
+              ytdValue={ytdIncome}
+              monthHref={`/payments?year=${selYearParam}&month=${selMonthParam}`}
+              ytdHref={`/payments?year=${selYearParam}`}
+            />
+            <PnlLine
+              label="Operating expenses"
+              monthValue={-monthOpEx}
+              ytdValue={-ytdOpEx}
+              monthHref={`/expenses?year=${selYearParam}&month=${selMonthParam}`}
+              ytdHref={`/expenses?year=${selYearParam}`}
+            />
+
+            <PnlSubtotal label="Net Operating Income (NOI)" monthValue={monthNOI} ytdValue={ytdNOI} />
+
+            <PnlLine
+              label="Debt service (mortgage)"
+              monthValue={-monthDebtService}
+              ytdValue={-ytdDebtService}
+              dimWhenZero
+            />
+
+            <PnlSubtotal
+              label="Actual profit"
+              monthValue={monthActualProfit}
+              ytdValue={ytdActualProfit}
+              emphasis
+            />
+
+            <PnlLine
+              label="Profit taken out"
+              monthValue={0}
+              ytdValue={-ytdDistributions}
+              dimWhenZero
+              ytdHref="/distributions"
+            />
+
+            <PnlSubtotal
+              label="Available to distribute"
+              monthValue={monthActualProfit}
+              ytdValue={ytdActualProfit - ytdDistributions}
+            />
+          </div>
+
+          <div className="mt-3 text-[11px] text-stone-500 flex flex-wrap gap-x-4 gap-y-1">
+            <span>
+              vs {prevMonthLabel}: Rent ${prevMonthCollected.toLocaleString()}, OpEx $
+              {prevMonthOpEx.toLocaleString()}, NOI ${prevMonthNOI.toLocaleString()}, Actual
+              profit ${prevMonthActualProfit.toLocaleString()}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -534,8 +597,8 @@ export default async function DashboardPage({
         />
       </div>
 
-      {/* YTD financial KPIs (rentals) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      {/* YTD P&L KPIs (rentals) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         <KpiCard
           label="YTD rent income"
           value={`$${ytdIncome.toLocaleString()}`}
@@ -544,11 +607,26 @@ export default async function DashboardPage({
           href={`/payments?year=${selYearParam}`}
         />
         <KpiCard
-          label="YTD expenses"
-          value={`$${ytdExpenses.toLocaleString()}`}
-          sub="Including maintenance"
+          label="YTD operating expenses"
+          value={`$${ytdOpEx.toLocaleString()}`}
+          sub="Excludes mortgage"
           href={`/expenses?year=${selYearParam}`}
         />
+        <KpiCard
+          label="YTD NOI"
+          value={`$${ytdNOI.toLocaleString()}`}
+          sub={ytdIncome > 0 ? `${ytdMargin}% operating margin` : "Income − OpEx"}
+          tone={ytdNOI > 0 ? "success" : ytdNOI < 0 ? "warning" : undefined}
+        />
+        <KpiCard
+          label="YTD actual profit"
+          value={`$${ytdActualProfit.toLocaleString()}`}
+          sub={ytdDebtService > 0 ? `After $${ytdDebtService.toLocaleString()} debt service` : "Cash flow (NOI − debt)"}
+          tone={ytdActualProfit > 0 ? "success" : ytdActualProfit < 0 ? "warning" : undefined}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-6">
         <KpiCard
           label="Profit taken out"
           value={`$${ytdDistributions.toLocaleString()}`}
@@ -557,9 +635,19 @@ export default async function DashboardPage({
         />
         <KpiCard
           label="Available to distribute"
-          value={`$${Math.max(0, available).toLocaleString()}`}
-          sub={available < 0 ? "Negative — pulled more than earned" : "Net YTD − distributions"}
-          tone={available > 0 ? "success" : available < 0 ? "warning" : undefined}
+          value={`$${Math.max(0, ytdActualProfit - ytdDistributions).toLocaleString()}`}
+          sub={
+            ytdActualProfit - ytdDistributions < 0
+              ? "Negative — pulled more than earned"
+              : "Actual profit − distributions"
+          }
+          tone={
+            ytdActualProfit - ytdDistributions > 0
+              ? "success"
+              : ytdActualProfit - ytdDistributions < 0
+                ? "warning"
+                : undefined
+          }
         />
       </div>
 
@@ -753,35 +841,88 @@ function MiniStat({
   return <div>{body}</div>;
 }
 
-function ComparisonRow({
+function fmtSigned(n: number) {
+  if (n < 0) return `-$${Math.abs(n).toLocaleString()}`;
+  return `$${n.toLocaleString()}`;
+}
+
+function PnlLine({
   label,
-  rent,
-  expenses,
-  net,
+  monthValue,
+  ytdValue,
+  monthHref,
+  ytdHref,
+  dimWhenZero,
 }: {
   label: string;
-  rent: number;
-  expenses: number;
-  net: number;
+  monthValue: number;
+  ytdValue: number;
+  monthHref?: string;
+  ytdHref?: string;
+  dimWhenZero?: boolean;
 }) {
+  const isNegative = monthValue < 0 || ytdValue < 0;
+  const dim = dimWhenZero && monthValue === 0 && ytdValue === 0;
+  const valueColor = dim
+    ? "text-stone-400"
+    : isNegative
+      ? "text-red-700"
+      : "text-stone-900";
+  const monthBody = <span className={valueColor}>{fmtSigned(monthValue)}</span>;
+  const ytdBody = <span className={valueColor}>{fmtSigned(ytdValue)}</span>;
   return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-stone-600">
-      <span className="font-medium text-stone-700">{label}:</span>
-      <span>
-        Rent <span className="text-stone-900 font-medium">${rent.toLocaleString()}</span>
-      </span>
-      <span>
-        Expenses <span className="text-stone-900 font-medium">${expenses.toLocaleString()}</span>
-      </span>
-      <span>
-        Net{" "}
-        <span
-          className={`font-medium ${net > 0 ? "text-green-700" : net < 0 ? "text-amber-700" : "text-stone-900"}`}
-        >
-          ${net.toLocaleString()}
-        </span>
-      </span>
-    </div>
+    <>
+      <div className={`py-1.5 text-stone-600 ${dim ? "text-stone-400" : ""}`}>{label}</div>
+      <div className="py-1.5 text-right tabular-nums">
+        {monthHref && monthValue !== 0 ? (
+          <Link href={monthHref} className="hover:underline">
+            {monthBody}
+          </Link>
+        ) : (
+          monthBody
+        )}
+      </div>
+      <div className="py-1.5 text-right tabular-nums">
+        {ytdHref && ytdValue !== 0 ? (
+          <Link href={ytdHref} className="hover:underline">
+            {ytdBody}
+          </Link>
+        ) : (
+          ytdBody
+        )}
+      </div>
+    </>
+  );
+}
+
+function PnlSubtotal({
+  label,
+  monthValue,
+  ytdValue,
+  emphasis,
+}: {
+  label: string;
+  monthValue: number;
+  ytdValue: number;
+  emphasis?: boolean;
+}) {
+  const cls = emphasis ? "font-semibold text-stone-900" : "font-medium text-stone-800";
+  const tone = (v: number) =>
+    v > 0
+      ? "text-green-700"
+      : v < 0
+        ? "text-amber-700"
+        : "text-stone-700";
+  return (
+    <>
+      <div className={`py-1.5 border-t border-stone-200 ${cls}`}>{label}</div>
+      <div className={`py-1.5 text-right tabular-nums border-t border-stone-200 ${cls} ${tone(monthValue)}`}>
+        {fmtSigned(monthValue)}
+      </div>
+      <div className={`py-1.5 text-right tabular-nums border-t border-stone-200 ${cls} ${tone(ytdValue)}`}>
+        {fmtSigned(ytdValue)}
+      </div>
+    </>
   );
 }
 
