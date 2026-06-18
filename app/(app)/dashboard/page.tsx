@@ -7,6 +7,9 @@ import {
   subMonths,
   startOfYear,
   differenceInCalendarDays,
+  differenceInDays,
+  subDays,
+  isSameDay,
   parse,
 } from "date-fns";
 import { parseDbDate } from "@/lib/dates";
@@ -15,51 +18,90 @@ import {
   CheckCircle2,
   Circle,
   HardHat,
-  ChevronLeft,
-  ChevronRight,
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
 import LeaseAlerts from "@/components/LeaseAlerts";
 import ActivityFeed from "@/components/ActivityFeed";
 import { CashflowChart, CategoryPieChart } from "@/components/DashboardCharts";
+import { computePnL } from "@/lib/pnl";
+
+function parseISO(s: string | undefined): Date | null {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = parse(s, "yyyy-MM-dd", new Date());
+  return isNaN(d.getTime()) ? null : d;
+}
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    to?: string;
+    property?: string;
+    month?: string;
+  }>;
 }) {
   const supabase = await createClient();
 
   // Lazy-tick expired leases (no-op if RPC doesn't exist or none past end_date)
   await supabase.rpc("expire_overdue_leases").throwOnError().then(() => {}, () => {});
 
-  // Selected month from ?month=YYYY-MM, default to current month. Clamp to a
-  // real Date so a bogus param doesn't crash the page.
-  const { month: monthParam } = await searchParams;
-  let selectedDate = new Date();
-  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+  const { from, to, property: propertyParam, month: monthParam } = await searchParams;
+
+  // Date range: ?from=YYYY-MM-DD&to=YYYY-MM-DD. Falls back to ?month= for
+  // backward compat, and defaults to current calendar month.
+  const today = new Date();
+  let rangeStart: Date = startOfMonth(today);
+  let rangeEnd: Date = endOfMonth(today);
+  const parsedFrom = parseISO(from);
+  const parsedTo = parseISO(to);
+  if (parsedFrom && parsedTo && parsedFrom <= parsedTo) {
+    rangeStart = parsedFrom;
+    rangeEnd = parsedTo;
+  } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
     const parsed = parse(`${monthParam}-01`, "yyyy-MM-dd", new Date());
-    if (!isNaN(parsed.getTime())) selectedDate = parsed;
+    if (!isNaN(parsed.getTime())) {
+      rangeStart = startOfMonth(parsed);
+      rangeEnd = endOfMonth(parsed);
+    }
   }
 
-  const selStart = startOfMonth(selectedDate);
-  const selEnd = endOfMonth(selectedDate);
-  const prevDate = subMonths(selectedDate, 1);
-  const prevStart = startOfMonth(prevDate);
-  const prevEnd = endOfMonth(prevDate);
+  const propertyId = propertyParam && propertyParam !== "all" ? propertyParam : null;
 
-  const selMonthStr = format(selStart, "yyyy-MM-dd");
-  const selMonthEndStr = format(selEnd, "yyyy-MM-dd");
-  const prevMonthStr = format(prevStart, "yyyy-MM-dd");
-  const prevMonthEndStr = format(prevEnd, "yyyy-MM-dd");
-  const yearStart = format(startOfYear(selectedDate), "yyyy-MM-dd");
-  const cashflowSince = format(startOfMonth(subMonths(selectedDate, 11)), "yyyy-MM-dd");
+  // Previous period of equal length, immediately preceding the current range
+  const rangeDays = differenceInDays(rangeEnd, rangeStart);
+  const prevEnd = subDays(rangeStart, 1);
+  const prevStart = subDays(prevEnd, rangeDays);
 
-  // For drilldown links into PaymentsList / ExpensesList, which expect
-  // numeric year + 0-indexed month strings.
-  const selYearParam = String(selStart.getFullYear());
-  const selMonthParam = String(selStart.getMonth());
+  // Stringified range bounds for queries
+  const rangeStartStr = format(rangeStart, "yyyy-MM-dd");
+  const rangeEndStr = format(rangeEnd, "yyyy-MM-dd");
+  const prevStartStr = format(prevStart, "yyyy-MM-dd");
+  const prevEndStr = format(prevEnd, "yyyy-MM-dd");
+  const yearStart = format(startOfYear(rangeStart), "yyyy-MM-dd");
+  const cashflowSince = format(startOfMonth(subMonths(rangeEnd, 11)), "yyyy-MM-dd");
+
+  // Period classification: are we looking at a full calendar month / year?
+  const isFullMonth =
+    isSameDay(rangeStart, startOfMonth(rangeStart)) &&
+    isSameDay(rangeEnd, endOfMonth(rangeStart));
+  const isCurrentMonth =
+    isFullMonth &&
+    rangeStart.getFullYear() === today.getFullYear() &&
+    rangeStart.getMonth() === today.getMonth();
+  const isYTD =
+    isSameDay(rangeStart, startOfYear(rangeStart)) &&
+    isSameDay(rangeEnd, endOfMonth(today)) &&
+    rangeStart.getFullYear() === today.getFullYear();
+  const isLastMonth =
+    isFullMonth &&
+    rangeStart.getFullYear() === subMonths(today, 1).getFullYear() &&
+    rangeStart.getMonth() === subMonths(today, 1).getMonth();
+
+  // For drilldown links into PaymentsList / ExpensesList
+  const selYearParam = String(rangeStart.getFullYear());
+  const selMonthParam = String(rangeStart.getMonth());
 
   const [
     propsRes,
@@ -81,33 +123,59 @@ export default async function DashboardPage({
     prevMonthPaymentsRes,
     prevMonthExpensesRes,
   ] = await Promise.all([
-    supabase.from("properties").select("id, name"),
-    supabase.from("units").select("id, status"),
+    supabase.from("properties").select("id, name").order("name"),
+    supabase.from("units").select("id, status, property_id"),
     supabase
       .from("leases")
-      .select("id, monthly_rent, end_date, status, tenant_id, tenants(full_name)")
+      .select(
+        "id, monthly_rent, end_date, status, tenant_id, unit_id, units(property_id), tenants(full_name)"
+      )
       .eq("status", "active"),
+    // Selected-range payments — include lease/unit so we can filter by property
     supabase
       .from("payments")
-      .select("id, amount, payment_date, lease_id, leases(tenants(full_name))")
-      .gte("for_month", selMonthStr)
-      .lte("for_month", selMonthEndStr)
+      .select(
+        "id, amount, payment_date, lease_id, leases(units(property_id), tenants(full_name))"
+      )
+      .gte("for_month", rangeStartStr)
+      .lte("for_month", rangeEndStr)
       .order("payment_date", { ascending: false }),
+    // Recent expenses (kept at 5 most recent across all time)
     supabase
       .from("expenses")
-      .select("id, amount, description, expense_date, properties(name)")
+      .select("id, amount, property_id, description, expense_date, properties(name)")
       .order("expense_date", { ascending: false })
-      .limit(5),
-    supabase.from("payments").select("amount, for_month").gte("for_month", yearStart),
-    supabase.from("expenses").select("amount, category, expense_date").gte("expense_date", yearStart),
-    supabase.from("distributions").select("amount, type").gte("distribution_date", yearStart),
-    supabase.from("payments").select("amount, for_month").gte("for_month", cashflowSince),
-    supabase.from("expenses").select("amount, expense_date").gte("expense_date", cashflowSince),
-    supabase.from("expenses").select("category, amount").gte("expense_date", yearStart),
+      .limit(propertyId ? 50 : 5),
+    // YTD aggregates
+    supabase
+      .from("payments")
+      .select("amount, for_month, leases(units(property_id))")
+      .gte("for_month", yearStart),
+    supabase
+      .from("expenses")
+      .select("amount, category, property_id, expense_date")
+      .gte("expense_date", yearStart),
+    supabase
+      .from("distributions")
+      .select("amount, type, property_id")
+      .gte("distribution_date", yearStart),
+    // Cashflow chart (last 12 months) — filtered in JS by property if set
+    supabase
+      .from("payments")
+      .select("amount, for_month, leases(units(property_id))")
+      .gte("for_month", cashflowSince),
+    supabase
+      .from("expenses")
+      .select("amount, property_id, expense_date")
+      .gte("expense_date", cashflowSince),
+    supabase
+      .from("expenses")
+      .select("category, amount, property_id")
+      .gte("expense_date", yearStart),
     supabase.from("tenants").select("id"),
     supabase
       .from("maintenance_requests")
-      .select("id, title, status, priority")
+      .select("id, title, status, priority, property_id")
       .in("status", ["open", "in_progress"]),
     supabase
       .from("construction_projects")
@@ -116,81 +184,113 @@ export default async function DashboardPage({
       .from("construction_expenses")
       .select("amount, expense_date")
       .gte("expense_date", yearStart),
+    // Range expenses (with category so we can split mortgage vs OpEx)
     supabase
       .from("expenses")
-      .select("amount, category, expense_date")
-      .gte("expense_date", selMonthStr)
-      .lte("expense_date", selMonthEndStr),
+      .select("amount, category, property_id, expense_date")
+      .gte("expense_date", rangeStartStr)
+      .lte("expense_date", rangeEndStr),
+    // Previous-period payments + expenses for the delta chip
     supabase
       .from("payments")
-      .select("amount, for_month")
-      .gte("for_month", prevMonthStr)
-      .lte("for_month", prevMonthEndStr),
+      .select("amount, for_month, leases(units(property_id))")
+      .gte("for_month", prevStartStr)
+      .lte("for_month", prevEndStr),
     supabase
       .from("expenses")
-      .select("amount, category, expense_date")
-      .gte("expense_date", prevMonthStr)
-      .lte("expense_date", prevMonthEndStr),
+      .select("amount, category, property_id, expense_date")
+      .gte("expense_date", prevStartStr)
+      .lte("expense_date", prevEndStr),
   ]);
 
   const properties = propsRes.data || [];
-  const units = unitsRes.data || [];
-  const activeLeases = leasesRes.data || [];
-  const monthPayments = paymentsRes.data || [];
-  const recentExpenses = expensesRes.data || [];
+  const units = (unitsRes.data || []) as any[];
+  const activeLeasesRaw = (leasesRes.data || []) as any[];
   const tenants = tenantsRes.data || [];
-  const openMaint = (openMaintRes.data || []) as any[];
 
-  const totalUnits = units.length;
-  const occupiedUnits = units.filter((u) => u.status === "occupied").length;
+  // Optionally narrow everything to one property
+  const matchesProperty = <T extends { property_id?: string | null }>(row: T) =>
+    !propertyId || row.property_id === propertyId;
+  const paymentMatchesProperty = (p: any) =>
+    !propertyId || p.leases?.units?.property_id === propertyId;
+
+  const activeLeases = activeLeasesRaw.filter(
+    (l) => !propertyId || l.units?.property_id === propertyId
+  );
+  const filteredUnits = units.filter((u) => !propertyId || u.property_id === propertyId);
+  const monthPayments = (paymentsRes.data || []).filter(paymentMatchesProperty);
+  const recentExpenses = ((expensesRes.data || []) as any[])
+    .filter((e) => !propertyId || e.property_id === propertyId)
+    .slice(0, 5);
+  const monthExpensesRows = ((monthExpensesRes.data || []) as any[]).filter(matchesProperty);
+  const prevMonthPayments = (prevMonthPaymentsRes.data || []).filter(paymentMatchesProperty);
+  const prevMonthExpenses = ((prevMonthExpensesRes.data || []) as any[]).filter(matchesProperty);
+  const ytdPayments = (ytdPaymentsRes.data || []).filter(paymentMatchesProperty);
+  const ytdExpensesRows = ((ytdExpensesRes.data || []) as any[]).filter(matchesProperty);
+  const ytdDist = ((ytdDistRes.data || []) as any[]).filter(matchesProperty);
+  const openMaint = ((openMaintRes.data || []) as any[]).filter(matchesProperty);
+
+  const totalUnits = filteredUnits.length;
+  const occupiedUnits = filteredUnits.filter((u) => u.status === "occupied").length;
   const expectedRent = activeLeases.reduce((sum, l) => sum + Number(l.monthly_rent), 0);
-  const collectedRent = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  // ── P&L using the shared helper ──
+  const pnl = computePnL({
+    payments: monthPayments,
+    expenses: monthExpensesRows,
+    distributions: ((ytdDistRes.data || []) as any[]).filter(
+      (d) => matchesProperty(d) && d.distribution_date >= rangeStartStr && d.distribution_date <= rangeEndStr
+    ),
+  });
+  const collectedRent = pnl.rentIncome;
   const outstanding = Math.max(0, expectedRent - collectedRent);
-
-  // ── P&L splits ──
-  // Operating expenses (OpEx) = everything except mortgage. Mortgage payments
-  // are debt service and are shown below NOI so Net Operating Income reflects
-  // the property's true earning power.
-  function splitExpenses(rows: any[]) {
-    let opEx = 0;
-    let debtService = 0;
-    for (const r of rows || []) {
-      const amt = Number(r.amount);
-      if (r.category === "mortgage") debtService += amt;
-      else opEx += amt;
-    }
-    return { opEx, debtService, total: opEx + debtService };
-  }
-
-  const monthSplit = splitExpenses(monthExpensesRes.data || []);
-  const monthExpenses = monthSplit.total;
-  const monthOpEx = monthSplit.opEx;
-  const monthDebtService = monthSplit.debtService;
-  const monthNOI = collectedRent - monthOpEx;
-  const monthActualProfit = monthNOI - monthDebtService;
-  const monthMargin =
-    collectedRent > 0 ? Math.round((monthNOI / collectedRent) * 100) : 0;
-
+  const monthOpEx = pnl.opEx;
+  const monthDebtService = pnl.debtService;
+  const monthNOI = pnl.noi;
+  const monthActualProfit = pnl.actualProfit;
+  const monthMargin = pnl.margin;
   const collectedPct =
     expectedRent > 0 ? Math.min(100, Math.round((collectedRent / expectedRent) * 100)) : 0;
 
-  // Previous month splits for the delta chips
-  const prevMonthCollected = (prevMonthPaymentsRes.data || []).reduce(
-    (s: number, p: any) => s + Number(p.amount),
-    0
-  );
-  const prevSplit = splitExpenses(prevMonthExpensesRes.data || []);
-  const prevMonthOpEx = prevSplit.opEx;
-  const prevMonthDebtService = prevSplit.debtService;
-  const prevMonthNOI = prevMonthCollected - prevMonthOpEx;
-  const prevMonthActualProfit = prevMonthNOI - prevMonthDebtService;
+  const prevPnl = computePnL({
+    payments: prevMonthPayments,
+    expenses: prevMonthExpenses,
+  });
+  const prevMonthCollected = prevPnl.rentIncome;
+  const prevMonthOpEx = prevPnl.opEx;
+  const prevMonthDebtService = prevPnl.debtService;
+  const prevMonthNOI = prevPnl.noi;
+  const prevMonthActualProfit = prevPnl.actualProfit;
 
-  const isCurrentMonth =
-    selStart.getFullYear() === new Date().getFullYear() &&
-    selStart.getMonth() === new Date().getMonth();
-  const nextMonth = startOfMonth(subMonths(selectedDate, -1));
-  const prevMonthLabel = format(prevStart, "MMM yyyy");
-  const ytdLabel = `${selStart.getFullYear()} YTD`;
+  // Pace + days-left for the hero card. Only meaningful when we're looking at
+  // the current calendar month — projects the run-rate to month end.
+  const daysInRange = differenceInDays(rangeEnd, rangeStart) + 1;
+  const daysElapsed = isCurrentMonth
+    ? Math.max(1, differenceInDays(today, rangeStart) + 1)
+    : daysInRange;
+  const daysLeft = isCurrentMonth
+    ? Math.max(0, differenceInDays(rangeEnd, today))
+    : 0;
+  const periodProgress = Math.min(100, Math.round((daysElapsed / daysInRange) * 100));
+  const pacedActualProfit =
+    isCurrentMonth && daysElapsed > 0
+      ? Math.round((monthActualProfit / daysElapsed) * daysInRange)
+      : null;
+
+  const profitDelta = prevMonthActualProfit !== 0
+    ? Math.round(((monthActualProfit - prevMonthActualProfit) / Math.abs(prevMonthActualProfit)) * 100)
+    : null;
+
+  // Labels
+  const rangeLabel = isFullMonth
+    ? format(rangeStart, "MMMM yyyy")
+    : isYTD
+      ? `${rangeStart.getFullYear()} YTD`
+      : `${format(rangeStart, "MMM d")} – ${format(rangeEnd, "MMM d, yyyy")}`;
+  const prevMonthLabel = isFullMonth
+    ? format(prevStart, "MMM yyyy")
+    : `prev ${daysInRange} days`;
+  const ytdLabel = `${rangeStart.getFullYear()} YTD`;
 
   // ── Construction KPIs ──
   const constructionProjects = (constructionProjectsRes.data || []) as any[];
@@ -230,34 +330,39 @@ export default async function DashboardPage({
     return pct >= 0.8 && pct <= 1;
   });
 
-  const ytdIncome = (ytdPaymentsRes.data || []).reduce((s, p: any) => s + Number(p.amount), 0);
-  const ytdExpenses = (ytdExpensesRes.data || []).reduce((s, e: any) => s + Number(e.amount), 0);
-  const ytdDistributions = (ytdDistRes.data || [])
-    .filter((d: any) => d.type !== "contribution")
-    .reduce((s, d: any) => s + Number(d.amount), 0);
+  // YTD P&L (respects property filter)
+  const ytdPnl = computePnL({
+    payments: ytdPayments,
+    expenses: ytdExpensesRows,
+    distributions: ytdDist,
+  });
+  const ytdIncome = ytdPnl.rentIncome;
+  const ytdExpenses = ytdPnl.opEx + ytdPnl.debtService;
+  const ytdOpEx = ytdPnl.opEx;
+  const ytdDebtService = ytdPnl.debtService;
+  const ytdNOI = ytdPnl.noi;
+  const ytdActualProfit = ytdPnl.actualProfit;
+  const ytdDistributions = ytdPnl.profitTakenOut;
+  const ytdMargin = ytdPnl.margin;
 
-  // YTD P&L splits
-  const ytdSplit = splitExpenses(ytdExpensesRes.data || []);
-  const ytdOpEx = ytdSplit.opEx;
-  const ytdDebtService = ytdSplit.debtService;
-  const ytdNOI = ytdIncome - ytdOpEx;
-  const ytdActualProfit = ytdNOI - ytdDebtService;
-  const ytdMargin = ytdIncome > 0 ? Math.round((ytdNOI / ytdIncome) * 100) : 0;
-
-  // Cashflow chart data: last 12 months
+  // Cashflow chart data: last 12 months (respects property filter)
   const cashflowMap: Record<string, { income: number; expenses: number }> = {};
   for (let i = 11; i >= 0; i--) {
     const m = format(startOfMonth(subMonths(new Date(), i)), "yyyy-MM");
     cashflowMap[m] = { income: 0, expenses: 0 };
   }
-  (cashflowPaymentsRes.data || []).forEach((p: any) => {
-    const k = String(p.for_month).slice(0, 7);
-    if (cashflowMap[k]) cashflowMap[k].income += Number(p.amount);
-  });
-  (cashflowExpensesRes.data || []).forEach((e: any) => {
-    const k = String(e.expense_date).slice(0, 7);
-    if (cashflowMap[k]) cashflowMap[k].expenses += Number(e.amount);
-  });
+  ((cashflowPaymentsRes.data || []) as any[])
+    .filter(paymentMatchesProperty)
+    .forEach((p) => {
+      const k = String(p.for_month).slice(0, 7);
+      if (cashflowMap[k]) cashflowMap[k].income += Number(p.amount);
+    });
+  ((cashflowExpensesRes.data || []) as any[])
+    .filter(matchesProperty)
+    .forEach((e) => {
+      const k = String(e.expense_date).slice(0, 7);
+      if (cashflowMap[k]) cashflowMap[k].expenses += Number(e.amount);
+    });
   const cashflowData = Object.entries(cashflowMap).map(([k, v]) => ({
     month: format(new Date(k + "-01"), "MMM"),
     income: v.income,
@@ -265,11 +370,13 @@ export default async function DashboardPage({
     net: v.income - v.expenses,
   }));
 
-  // Category pie data
+  // Category pie data (respects property filter)
   const catMap: Record<string, number> = {};
-  (categoryExpensesRes.data || []).forEach((e: any) => {
-    catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount);
-  });
+  ((categoryExpensesRes.data || []) as any[])
+    .filter(matchesProperty)
+    .forEach((e: any) => {
+      catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount);
+    });
   const categoryData = Object.entries(catMap)
     .map(([name, value]) => ({
       name: name.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
@@ -288,7 +395,6 @@ export default async function DashboardPage({
     });
   }
 
-  const today = new Date();
   activeLeases.forEach((l: any) => {
     const days = differenceInCalendarDays(parseDbDate(l.end_date), today);
     if (days >= 0 && days <= 60) {
@@ -337,41 +443,35 @@ export default async function DashboardPage({
   const onboardingComplete = onboarding.every((o) => o.done);
   const completedSteps = onboarding.filter((o) => o.done).length;
 
-  const prevHref = `/dashboard?month=${format(prevStart, "yyyy-MM")}`;
-  const nextHref = `/dashboard?month=${format(nextMonth, "yyyy-MM")}`;
+  // Period chips — preserve property filter when switching periods
+  const propQ = propertyId ? `&property=${propertyId}` : "";
+  const chips: { label: string; from: Date; to: Date; active: boolean }[] = [
+    {
+      label: "This Month",
+      from: startOfMonth(today),
+      to: endOfMonth(today),
+      active: isCurrentMonth,
+    },
+    {
+      label: "Last Month",
+      from: startOfMonth(subMonths(today, 1)),
+      to: endOfMonth(subMonths(today, 1)),
+      active: isLastMonth,
+    },
+    {
+      label: "YTD",
+      from: startOfYear(today),
+      to: endOfMonth(today),
+      active: isYTD,
+    },
+  ];
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div>
           <h1 className="text-2xl font-medium">Dashboard</h1>
-          <div className="flex items-center gap-1 mt-1">
-            <Link
-              href={prevHref}
-              className="p-1 -ml-1 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Link>
-            <span className="text-sm text-stone-700 font-medium px-1">
-              {format(selStart, "MMMM yyyy")}
-            </span>
-            <Link
-              href={nextHref}
-              className="p-1 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded"
-              aria-label="Next month"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Link>
-            {!isCurrentMonth && (
-              <Link
-                href="/dashboard"
-                className="ml-1 px-2 py-0.5 text-xs text-teal-700 hover:bg-teal-50 rounded border border-teal-200"
-              >
-                Today
-              </Link>
-            )}
-          </div>
+          <div className="text-sm text-stone-500 mt-0.5">{rangeLabel}</div>
         </div>
         <div className="flex gap-2">
           <Link
@@ -388,6 +488,49 @@ export default async function DashboardPage({
           </Link>
         </div>
       </div>
+
+      {/* Period chips + property filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 bg-white border border-stone-200 rounded-xl p-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {chips.map((c) => (
+            <Link
+              key={c.label}
+              href={`/dashboard?from=${format(c.from, "yyyy-MM-dd")}&to=${format(c.to, "yyyy-MM-dd")}${propQ}`}
+              className={`px-3 py-1 text-xs rounded-full border ${
+                c.active
+                  ? "bg-teal-700 text-white border-teal-700"
+                  : "bg-white border-stone-200 text-stone-700 hover:border-teal-400 hover:bg-stone-50"
+              }`}
+            >
+              {c.label}
+            </Link>
+          ))}
+          <CustomRangePicker
+            propertyId={propertyId}
+            initialFrom={rangeStartStr}
+            initialTo={rangeEndStr}
+          />
+        </div>
+        <PropertyFilter
+          properties={properties as any}
+          selected={propertyId}
+          rangeFrom={rangeStartStr}
+          rangeTo={rangeEndStr}
+        />
+      </div>
+
+      {/* Hero: actual profit for the selected range */}
+      <ActualProfitHero
+        rangeLabel={rangeLabel}
+        actualProfit={monthActualProfit}
+        deltaPct={profitDelta}
+        margin={monthMargin}
+        pace={pacedActualProfit}
+        daysLeft={daysLeft}
+        progressPct={periodProgress}
+        isCurrentMonth={isCurrentMonth}
+        rangeStart={rangeStart}
+      />
 
       {/* Onboarding checklist */}
       {!onboardingComplete && (
@@ -465,7 +608,7 @@ export default async function DashboardPage({
             <div className="text-sm font-medium text-stone-900">
               {isCurrentMonth ? "This month" : "Selected month"}
             </div>
-            <div className="text-xs text-stone-500">{format(selStart, "MMMM yyyy")}</div>
+            <div className="text-xs text-stone-500">{format(rangeStart, "MMMM yyyy")}</div>
           </div>
           {outstanding > 0 ? (
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
@@ -522,7 +665,7 @@ export default async function DashboardPage({
           <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto] gap-x-3 sm:gap-x-6 text-sm">
             <div className="hidden sm:block" />
             <div className="hidden sm:block text-[11px] text-stone-500 uppercase tracking-wider text-right">
-              {format(selStart, "MMM yyyy")}
+              {format(rangeStart, "MMM yyyy")}
             </div>
             <div className="hidden sm:block text-[11px] text-stone-500 uppercase tracking-wider text-right">
               {ytdLabel}
@@ -602,7 +745,7 @@ export default async function DashboardPage({
         <KpiCard
           label="YTD rent income"
           value={`$${ytdIncome.toLocaleString()}`}
-          sub={`${selStart.getFullYear()} year-to-date`}
+          sub={`${rangeStart.getFullYear()} year-to-date`}
           tone="success"
           href={`/payments?year=${selYearParam}`}
         />
@@ -759,6 +902,194 @@ export default async function DashboardPage({
 
 // Difference between two amounts as a signed display + tone hint. For
 // "expense-like" metrics (lower is better), invert the tone.
+function ActualProfitHero({
+  rangeLabel,
+  actualProfit,
+  deltaPct,
+  margin,
+  pace,
+  daysLeft,
+  progressPct,
+  isCurrentMonth,
+  rangeStart,
+}: {
+  rangeLabel: string;
+  actualProfit: number;
+  deltaPct: number | null;
+  margin: number;
+  pace: number | null;
+  daysLeft: number;
+  progressPct: number;
+  isCurrentMonth: boolean;
+  rangeStart: Date;
+}) {
+  const positive = actualProfit >= 0;
+  const deltaPositive = (deltaPct ?? 0) >= 0;
+  const captionMonthName = format(rangeStart, "MMMM");
+  return (
+    <div className="relative bg-gradient-to-br from-emerald-900 via-stone-900 to-stone-900 text-white rounded-2xl p-5 sm:p-6 mb-4 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent pointer-events-none" />
+      <div className="relative">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div className="text-[11px] uppercase tracking-wider text-emerald-300/80">
+            Actual profit · {rangeLabel}
+          </div>
+          {deltaPct !== null && (
+            <span
+              className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                deltaPositive
+                  ? "bg-emerald-500/20 text-emerald-300"
+                  : "bg-rose-500/20 text-rose-300"
+              }`}
+            >
+              {deltaPositive ? (
+                <TrendingUp className="w-3.5 h-3.5" />
+              ) : (
+                <TrendingDown className="w-3.5 h-3.5" />
+              )}
+              {deltaPositive ? "+" : ""}
+              {deltaPct}% vs previous
+            </span>
+          )}
+        </div>
+        <div
+          className={`text-3xl sm:text-5xl font-semibold tracking-tight ${
+            positive ? "text-emerald-400" : "text-rose-400"
+          }`}
+        >
+          ${actualProfit.toLocaleString()}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5">
+          {pace !== null && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-stone-400 mb-0.5">
+                Pace
+              </div>
+              <div className="text-emerald-300 font-semibold">
+                ${pace.toLocaleString()}/mo
+              </div>
+            </div>
+          )}
+          {isCurrentMonth && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-stone-400 mb-0.5">
+                Days left
+              </div>
+              <div className="font-semibold">
+                {daysLeft} day{daysLeft === 1 ? "" : "s"}
+              </div>
+            </div>
+          )}
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-stone-400 mb-0.5">
+              Margin
+            </div>
+            <div className="font-semibold">{margin}%</div>
+          </div>
+        </div>
+
+        {isCurrentMonth && (
+          <div className="mt-4">
+            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-500 to-emerald-300"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-stone-400 mt-1">
+              <span>{progressPct}% through {captionMonthName}</span>
+              <span>
+                {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PropertyFilter({
+  properties,
+  selected,
+  rangeFrom,
+  rangeTo,
+}: {
+  properties: { id: string; name: string }[];
+  selected: string | null;
+  rangeFrom: string;
+  rangeTo: string;
+}) {
+  // Server-rendered select that posts via a hidden form. Submits navigate to a
+  // new URL preserving from/to.
+  return (
+    <form action="/dashboard" method="GET" className="flex items-center gap-2">
+      <input type="hidden" name="from" value={rangeFrom} />
+      <input type="hidden" name="to" value={rangeTo} />
+      <select
+        name="property"
+        defaultValue={selected || "all"}
+        className="text-sm border border-stone-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal-600"
+      >
+        <option value="all">All rental homes</option>
+        {properties.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="submit"
+        className="text-xs text-teal-700 hover:text-teal-800 px-2 py-1"
+      >
+        Apply
+      </button>
+    </form>
+  );
+}
+
+function CustomRangePicker({
+  propertyId,
+  initialFrom,
+  initialTo,
+}: {
+  propertyId: string | null;
+  initialFrom: string;
+  initialTo: string;
+}) {
+  return (
+    <form
+      action="/dashboard"
+      method="GET"
+      className="inline-flex items-center gap-1 ml-1"
+    >
+      <input
+        type="date"
+        name="from"
+        defaultValue={initialFrom}
+        className="text-xs border border-stone-200 rounded-md px-1.5 py-1 bg-white"
+        aria-label="From date"
+      />
+      <span className="text-xs text-stone-400">→</span>
+      <input
+        type="date"
+        name="to"
+        defaultValue={initialTo}
+        className="text-xs border border-stone-200 rounded-md px-1.5 py-1 bg-white"
+        aria-label="To date"
+      />
+      {propertyId && <input type="hidden" name="property" value={propertyId} />}
+      <button
+        type="submit"
+        className="text-xs text-teal-700 hover:text-teal-800 px-2 py-1"
+      >
+        Go
+      </button>
+    </form>
+  );
+}
+
 function diffFrom(
   curr: number,
   prev: number,
