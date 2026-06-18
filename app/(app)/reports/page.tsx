@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { startOfYear, format } from "date-fns";
 import CsvExportButtons from "@/components/CsvExportButtons";
+import { computePnL } from "@/lib/pnl";
 
 export default async function ReportsPage() {
   const supabase = await createClient();
@@ -8,7 +9,7 @@ export default async function ReportsPage() {
   const yearStart = format(startOfYear(new Date()), "yyyy-MM-dd");
 
   const [propsRes, paymentsRes, expensesRes, distributionsRes, mileageRes, expensesAllRes] = await Promise.all([
-    supabase.from("properties").select("id, name"),
+    supabase.from("properties").select("id, name").order("name"),
     supabase
       .from("payments")
       .select("amount, leases(units(property_id))")
@@ -26,28 +27,42 @@ export default async function ReportsPage() {
   ]);
 
   const properties = propsRes.data || [];
-  const payments = paymentsRes.data || [];
-  const expenses = expensesRes.data || [];
-  const distributions = distributionsRes.data || [];
+  const payments = (paymentsRes.data || []) as any[];
+  const expenses = (expensesRes.data || []) as any[];
+  const distributions = (distributionsRes.data || []) as any[];
   const mileage = mileageRes.data || [];
 
+  // Same P&L formula as the dashboard, using the shared helper
+  const totals = computePnL({
+    payments,
+    expenses,
+    distributions,
+  });
+  const totalContributions = distributions
+    .filter((d) => d.type === "contribution")
+    .reduce((s, d) => s + Number(d.amount), 0);
+
+  // Per-property breakdown
   const incomeByProp: Record<string, number> = {};
   payments.forEach((p: any) => {
     const pid = p.leases?.units?.property_id;
     if (pid) incomeByProp[pid] = (incomeByProp[pid] || 0) + Number(p.amount);
   });
-  const expByProp: Record<string, number> = {};
+  const opExByProp: Record<string, number> = {};
+  const debtServiceByProp: Record<string, number> = {};
   expenses.forEach((e: any) => {
-    expByProp[e.property_id] = (expByProp[e.property_id] || 0) + Number(e.amount);
+    if (!e.property_id) return;
+    if (e.category === "mortgage") {
+      debtServiceByProp[e.property_id] =
+        (debtServiceByProp[e.property_id] || 0) + Number(e.amount);
+    } else {
+      opExByProp[e.property_id] = (opExByProp[e.property_id] || 0) + Number(e.amount);
+    }
   });
   const distByProp: Record<string, number> = {};
   let generalDist = 0;
-  let totalContributions = 0;
   distributions.forEach((d: any) => {
-    if (d.type === "contribution") {
-      totalContributions += Number(d.amount);
-      return;
-    }
+    if (d.type === "contribution") return;
     if (d.property_id) {
       distByProp[d.property_id] = (distByProp[d.property_id] || 0) + Number(d.amount);
     } else {
@@ -55,13 +70,14 @@ export default async function ReportsPage() {
     }
   });
 
-  const totalIncome = Object.values(incomeByProp).reduce((s, v) => s + v, 0);
-  const totalExp = Object.values(expByProp).reduce((s, v) => s + v, 0);
-  const totalDist = distributions
-    .filter((d: any) => d.type !== "contribution")
-    .reduce((s, d: any) => s + Number(d.amount), 0);
-  const net = totalIncome - totalExp;
-  const retained = net - totalDist;
+  const totalIncome = totals.rentIncome;
+  const totalOpEx = totals.opEx;
+  const totalDebtService = totals.debtService;
+  const totalNOI = totals.noi;
+  const totalActualProfit = totals.actualProfit;
+  const totalDist = totals.profitTakenOut;
+  const totalAvailable = totals.availableToDistribute;
+  const totalMargin = totals.margin;
   const totalMiles = mileage.reduce((s: number, m: any) => s + Number(m.miles), 0);
   const mileageDeduction = totalMiles * 0.67;
 
@@ -89,14 +105,39 @@ export default async function ReportsPage() {
         <CsvExportButtons year={year} />
       </div>
 
+      {/* P&L statement — same formula as the dashboard */}
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden mb-6">
+        <div className="flex items-baseline justify-between px-4 py-3 border-b border-stone-100">
+          <h2 className="font-medium">Profit &amp; Loss · {year}</h2>
+          <span className="text-xs text-stone-500">Operating margin {totalMargin}%</span>
+        </div>
+        <div className="px-4 py-3 grid grid-cols-[1fr_auto] gap-x-6 text-sm">
+          <PnlRow label="Rent income" value={totalIncome} />
+          <PnlRow label="Operating expenses" value={-totalOpEx} />
+          <PnlSubtotalRow label="Net Operating Income (NOI)" value={totalNOI} />
+          <PnlRow label="Debt service (mortgage)" value={-totalDebtService} dimWhenZero />
+          <PnlSubtotalRow label="Actual profit" value={totalActualProfit} emphasis />
+          <PnlRow label="Profit taken out" value={-totalDist} dimWhenZero />
+          <PnlSubtotalRow label="Available to distribute" value={totalAvailable} />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <Stat label="Income" value={`$${totalIncome.toLocaleString()}`} tone="green" />
-        <Stat label="Expenses" value={`$${totalExp.toLocaleString()}`} tone="red" />
-        <Stat label="Profit taken out" value={`$${totalDist.toLocaleString()}`} tone="purple" />
+        <Stat label="Rent income" value={`$${totalIncome.toLocaleString()}`} tone="green" />
         <Stat
-          label="Retained"
-          value={`$${retained.toLocaleString()}`}
-          tone={retained >= 0 ? "default" : "red"}
+          label="Operating expenses"
+          value={`$${totalOpEx.toLocaleString()}`}
+          tone="red"
+        />
+        <Stat
+          label="NOI"
+          value={`$${totalNOI.toLocaleString()}`}
+          tone={totalNOI >= 0 ? "green" : "red"}
+        />
+        <Stat
+          label="Actual profit"
+          value={`$${totalActualProfit.toLocaleString()}`}
+          tone={totalActualProfit >= 0 ? "default" : "red"}
         />
       </div>
 
@@ -134,18 +175,19 @@ export default async function ReportsPage() {
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">Property</th>
                   <th className="text-right px-4 py-2 font-medium">Income</th>
-                  <th className="text-right px-4 py-2 font-medium">Expenses</th>
-                  <th className="text-right px-4 py-2 font-medium">Net</th>
-                  <th className="text-right px-4 py-2 font-medium">Drawn</th>
-                  <th className="text-right px-4 py-2 font-medium">Retained</th>
+                  <th className="text-right px-4 py-2 font-medium">OpEx</th>
+                  <th className="text-right px-4 py-2 font-medium">NOI</th>
+                  <th className="text-right px-4 py-2 font-medium">Debt</th>
+                  <th className="text-right px-4 py-2 font-medium">Profit</th>
                 </tr>
               </thead>
               <tbody>
                 {properties.map((p: any) => {
                   const inc = incomeByProp[p.id] || 0;
-                  const exp = expByProp[p.id] || 0;
-                  const dist = distByProp[p.id] || 0;
-                  const n = inc - exp;
+                  const opex = opExByProp[p.id] || 0;
+                  const debt = debtServiceByProp[p.id] || 0;
+                  const noi = inc - opex;
+                  const profit = noi - debt;
                   return (
                     <tr key={p.id} className="border-t border-stone-100">
                       <td className="px-4 py-2.5">{p.name}</td>
@@ -153,30 +195,32 @@ export default async function ReportsPage() {
                         ${inc.toLocaleString()}
                       </td>
                       <td className="px-4 py-2.5 text-right text-red-700">
-                        ${exp.toLocaleString()}
+                        ${opex.toLocaleString()}
                       </td>
                       <td className="px-4 py-2.5 text-right font-medium">
-                        ${n.toLocaleString()}
+                        ${noi.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-purple-700">
-                        ${dist.toLocaleString()}
+                      <td className="px-4 py-2.5 text-right text-stone-600">
+                        ${debt.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-medium">
-                        ${(n - dist).toLocaleString()}
+                      <td
+                        className={`px-4 py-2.5 text-right font-medium ${
+                          profit >= 0 ? "text-green-700" : "text-red-700"
+                        }`}
+                      >
+                        ${profit.toLocaleString()}
                       </td>
                     </tr>
                   );
                 })}
                 {generalDist > 0 && (
                   <tr className="border-t border-stone-100 text-stone-500 italic">
-                    <td className="px-4 py-2.5">General (unassigned)</td>
-                    <td className="px-4 py-2.5 text-right">—</td>
-                    <td className="px-4 py-2.5 text-right">—</td>
-                    <td className="px-4 py-2.5 text-right">—</td>
+                    <td className="px-4 py-2.5" colSpan={5}>
+                      General distributions (unassigned to a property)
+                    </td>
                     <td className="px-4 py-2.5 text-right text-purple-700 not-italic">
                       ${generalDist.toLocaleString()}
                     </td>
-                    <td className="px-4 py-2.5 text-right">—</td>
                   </tr>
                 )}
               </tbody>
@@ -243,6 +287,59 @@ export default async function ReportsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function fmtSigned(n: number) {
+  if (n < 0) return `-$${Math.abs(n).toLocaleString()}`;
+  return `$${n.toLocaleString()}`;
+}
+
+function PnlRow({
+  label,
+  value,
+  dimWhenZero,
+}: {
+  label: string;
+  value: number;
+  dimWhenZero?: boolean;
+}) {
+  const dim = dimWhenZero && value === 0;
+  return (
+    <>
+      <div className={`py-1.5 ${dim ? "text-stone-400" : "text-stone-600"}`}>{label}</div>
+      <div
+        className={`py-1.5 text-right tabular-nums ${
+          dim ? "text-stone-400" : value < 0 ? "text-red-700" : "text-stone-900"
+        }`}
+      >
+        {fmtSigned(value)}
+      </div>
+    </>
+  );
+}
+
+function PnlSubtotalRow({
+  label,
+  value,
+  emphasis,
+}: {
+  label: string;
+  value: number;
+  emphasis?: boolean;
+}) {
+  const cls = emphasis ? "font-semibold text-stone-900" : "font-medium text-stone-800";
+  const tone =
+    value > 0 ? "text-green-700" : value < 0 ? "text-amber-700" : "text-stone-700";
+  return (
+    <>
+      <div className={`py-1.5 border-t border-stone-200 ${cls}`}>{label}</div>
+      <div
+        className={`py-1.5 text-right tabular-nums border-t border-stone-200 ${cls} ${tone}`}
+      >
+        {fmtSigned(value)}
+      </div>
+    </>
   );
 }
 
