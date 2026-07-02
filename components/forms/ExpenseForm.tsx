@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -14,7 +14,7 @@ import Button from "@/components/ui/Button";
 import PendingFilesInput from "@/components/PendingFilesInput";
 import { uploadPendingFiles } from "@/lib/uploadPending";
 
-const CATEGORIES = [
+const STANDARD_CATEGORIES = [
   "repairs",
   "maintenance",
   "utilities",
@@ -27,10 +27,19 @@ const CATEGORIES = [
   "legal",
   "advertising",
   "other",
-].map((c) => ({
-  value: c,
-  label: c.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-}));
+];
+const CUSTOM_SENTINEL = "__custom__";
+const CATEGORY_OPTIONS = [
+  ...STANDARD_CATEGORIES.map((c) => ({
+    value: c,
+    label: c.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+  })),
+  { value: CUSTOM_SENTINEL, label: "Custom…" },
+];
+
+function toTitle(s: string) {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+}
 
 type Props = {
   mode: "create" | "edit";
@@ -44,9 +53,23 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
   const [properties, setProperties] = useState<any[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
+  // If the existing category isn't in the standard list, open the custom field
+  // pre-filled with it (edit mode where a user previously typed a custom label).
+  const initialIsCustom = useMemo(
+    () =>
+      !!initial?.category &&
+      !STANDARD_CATEGORIES.includes(initial.category as string),
+    [initial?.category]
+  );
+  const [customCategory, setCustomCategory] = useState(
+    initialIsCustom ? String(initial?.category ?? "") : ""
+  );
+
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ExpenseValues, any, ExpenseInput>({
     resolver: zodResolver(expenseSchema),
@@ -54,12 +77,15 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
       property_id: initial?.property_id ?? "",
       expense_date: initial?.expense_date ?? format(new Date(), "yyyy-MM-dd"),
       amount: initial?.amount,
-      category: initial?.category ?? "repairs",
+      category: initialIsCustom ? CUSTOM_SENTINEL : (initial?.category ?? "repairs"),
       description: initial?.description ?? "",
       vendor: initial?.vendor ?? "",
       notes: initial?.notes ?? "",
     },
   });
+
+  const selectedCategory = watch("category");
+  const isCustomSelected = selectedCategory === CUSTOM_SENTINEL;
 
   useEffect(() => {
     supabase
@@ -78,11 +104,32 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
       return;
     }
 
+    // If they picked Custom, use the typed label. Normalise to snake_case so
+    // it matches the shape of built-in categories (queries and pie-chart
+    // labels split on underscores).
+    let finalCategory = values.category;
+    if (values.category === CUSTOM_SENTINEL) {
+      const trimmed = customCategory.trim();
+      if (!trimmed) {
+        toast.error("Enter a name for the custom category");
+        return;
+      }
+      finalCategory = trimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9\s_-]/g, "")
+        .replace(/[\s-]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+      if (!finalCategory) {
+        toast.error("Custom category name is invalid");
+        return;
+      }
+    }
+
     const payload = {
       property_id: values.property_id,
       expense_date: values.expense_date,
       amount: values.amount,
-      category: values.category,
+      category: finalCategory,
       description: values.description,
       vendor: values.vendor || null,
       notes: values.notes || null,
@@ -165,10 +212,21 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
       <Select
         label="Category"
         required
-        options={CATEGORIES}
+        options={CATEGORY_OPTIONS}
         error={errors.category?.message}
         {...register("category")}
       />
+
+      {isCustomSelected && (
+        <Input
+          label="Custom category name"
+          required
+          placeholder="e.g. HOA special assessment"
+          value={customCategory}
+          onChange={(e) => setCustomCategory(e.target.value)}
+          hint="Free-form label. Saved lower-case with underscores so it groups cleanly on reports."
+        />
+      )}
 
       <Input
         label="Description"
