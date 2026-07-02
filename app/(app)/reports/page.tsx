@@ -1,42 +1,154 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { startOfYear, format } from "date-fns";
+import {
+  startOfYear,
+  startOfMonth,
+  endOfMonth,
+  format,
+  subMonths,
+  parse,
+  differenceInDays,
+  subDays,
+  isSameDay,
+} from "date-fns";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import CsvExportButtons from "@/components/CsvExportButtons";
 import { computePnL } from "@/lib/pnl";
 
-export default async function ReportsPage() {
-  const supabase = await createClient();
-  const year = new Date().getFullYear();
-  const yearStart = format(startOfYear(new Date()), "yyyy-MM-dd");
+function parseISO(s: string | undefined): Date | null {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = parse(s, "yyyy-MM-dd", new Date());
+  return isNaN(d.getTime()) ? null : d;
+}
 
-  const [propsRes, paymentsRes, expensesRes, distributionsRes, mileageRes, expensesAllRes] = await Promise.all([
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string; property?: string }>;
+}) {
+  const supabase = await createClient();
+  const { from, to, property: propertyParam } = await searchParams;
+
+  // Default to YTD if no range given (matches the old behaviour)
+  const today = new Date();
+  let rangeStart: Date = startOfYear(today);
+  let rangeEnd: Date = endOfMonth(today);
+  const parsedFrom = parseISO(from);
+  const parsedTo = parseISO(to);
+  if (parsedFrom && parsedTo && parsedFrom <= parsedTo) {
+    rangeStart = parsedFrom;
+    rangeEnd = parsedTo;
+  }
+  const propertyId = propertyParam && propertyParam !== "all" ? propertyParam : null;
+
+  const rangeStartStr = format(rangeStart, "yyyy-MM-dd");
+  const rangeEndStr = format(rangeEnd, "yyyy-MM-dd");
+
+  // Previous period (same length) for the delta chip
+  const rangeDays = differenceInDays(rangeEnd, rangeStart);
+  const prevEnd = subDays(rangeStart, 1);
+  const prevStart = subDays(prevEnd, rangeDays);
+  const prevStartStr = format(prevStart, "yyyy-MM-dd");
+  const prevEndStr = format(prevEnd, "yyyy-MM-dd");
+
+  // For 1099-NEC and CSV export, keep the calendar-year scope
+  const calendarYear = rangeStart.getFullYear();
+  const calendarYearStart = format(startOfYear(rangeStart), "yyyy-MM-dd");
+
+  // Period classification (same logic as dashboard)
+  const isFullMonth =
+    isSameDay(rangeStart, startOfMonth(rangeStart)) &&
+    isSameDay(rangeEnd, endOfMonth(rangeStart));
+  const isCurrentMonth =
+    isFullMonth &&
+    rangeStart.getFullYear() === today.getFullYear() &&
+    rangeStart.getMonth() === today.getMonth();
+  const isLastMonth =
+    isFullMonth &&
+    rangeStart.getFullYear() === subMonths(today, 1).getFullYear() &&
+    rangeStart.getMonth() === subMonths(today, 1).getMonth();
+  const isYTD =
+    isSameDay(rangeStart, startOfYear(today)) &&
+    isSameDay(rangeEnd, endOfMonth(today));
+
+  const rangeLabel = isFullMonth
+    ? format(rangeStart, "MMMM yyyy")
+    : isYTD
+      ? `${rangeStart.getFullYear()} YTD`
+      : `${format(rangeStart, "MMM d, yyyy")} – ${format(rangeEnd, "MMM d, yyyy")}`;
+  const [
+    propsRes,
+    paymentsRes,
+    expensesRes,
+    distributionsRes,
+    mileageRes,
+    expensesAllRes,
+    prevPaymentsRes,
+    prevExpensesRes,
+  ] = await Promise.all([
     supabase.from("properties").select("id, name").order("name"),
+    // Selected range
     supabase
       .from("payments")
       .select("amount, leases(units(property_id))")
-      .gte("for_month", yearStart),
+      .gte("for_month", rangeStartStr)
+      .lte("for_month", rangeEndStr),
     supabase
       .from("expenses")
-      .select("property_id, amount, category, vendor")
-      .gte("expense_date", yearStart),
+      .select("property_id, amount, category, vendor, expense_date")
+      .gte("expense_date", rangeStartStr)
+      .lte("expense_date", rangeEndStr),
     supabase
       .from("distributions")
       .select("property_id, amount, type")
-      .gte("distribution_date", yearStart),
-    supabase.from("mileage_logs").select("miles").gte("trip_date", yearStart),
-    supabase.from("expenses").select("vendor, amount").gte("expense_date", yearStart),
+      .gte("distribution_date", rangeStartStr)
+      .lte("distribution_date", rangeEndStr),
+    supabase
+      .from("mileage_logs")
+      .select("miles")
+      .gte("trip_date", rangeStartStr)
+      .lte("trip_date", rangeEndStr),
+    // Calendar year scope for the 1099-NEC roundup
+    supabase
+      .from("expenses")
+      .select("vendor, amount")
+      .gte("expense_date", calendarYearStart),
+    // Previous period (same length) for the delta chip
+    supabase
+      .from("payments")
+      .select("amount, leases(units(property_id))")
+      .gte("for_month", prevStartStr)
+      .lte("for_month", prevEndStr),
+    supabase
+      .from("expenses")
+      .select("property_id, amount, category")
+      .gte("expense_date", prevStartStr)
+      .lte("expense_date", prevEndStr),
   ]);
 
   const properties = propsRes.data || [];
-  const payments = (paymentsRes.data || []) as any[];
-  const expenses = (expensesRes.data || []) as any[];
-  const distributions = (distributionsRes.data || []) as any[];
+
+  // Property filter: narrow every dataset before computing the P&L
+  const paymentMatchesProperty = (p: any) =>
+    !propertyId || p.leases?.units?.property_id === propertyId;
+  const rowMatchesProperty = (r: any) => !propertyId || r.property_id === propertyId;
+
+  const payments = ((paymentsRes.data || []) as any[]).filter(paymentMatchesProperty);
+  const expenses = ((expensesRes.data || []) as any[]).filter(rowMatchesProperty);
+  const distributions = ((distributionsRes.data || []) as any[]).filter(rowMatchesProperty);
   const mileage = mileageRes.data || [];
+  const prevPayments = ((prevPaymentsRes.data || []) as any[]).filter(paymentMatchesProperty);
+  const prevExpenses = ((prevExpensesRes.data || []) as any[]).filter(rowMatchesProperty);
 
   // Same P&L formula as the dashboard, using the shared helper
   const totals = computePnL({
     payments,
     expenses,
     distributions,
+  });
+  const prevTotals = computePnL({
+    payments: prevPayments,
+    expenses: prevExpenses,
   });
   const totalContributions = distributions
     .filter((d) => d.type === "contribution")
@@ -95,20 +207,201 @@ export default async function ReportsPage() {
     .filter(([, amt]) => amt >= 600)
     .sort((a, b) => b[1] - a[1]);
 
+  // Delta vs previous period for the hero chip
+  const profitDelta =
+    prevTotals.actualProfit !== 0
+      ? Math.round(
+          ((totals.actualProfit - prevTotals.actualProfit) /
+            Math.abs(prevTotals.actualProfit)) *
+            100
+        )
+      : null;
+
+  // Period chips — preserve property filter when switching
+  const propQ = propertyId ? `&property=${propertyId}` : "";
+  const chips: { label: string; from: Date; to: Date; active: boolean }[] = [
+    {
+      label: "This Month",
+      from: startOfMonth(today),
+      to: endOfMonth(today),
+      active: isCurrentMonth,
+    },
+    {
+      label: "Last Month",
+      from: startOfMonth(subMonths(today, 1)),
+      to: endOfMonth(subMonths(today, 1)),
+      active: isLastMonth,
+    },
+    {
+      label: "YTD",
+      from: startOfYear(today),
+      to: endOfMonth(today),
+      active: isYTD,
+    },
+  ];
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
         <div>
-          <h1 className="text-2xl font-medium">Reports</h1>
-          <p className="text-sm text-stone-500">{year} year-to-date</p>
+          <h1 className="text-2xl font-medium">P&amp;L Report</h1>
+          <p className="text-sm text-stone-500">{rangeLabel}</p>
         </div>
-        <CsvExportButtons year={year} />
+        <CsvExportButtons year={calendarYear} />
+      </div>
+
+      {/* Period chips + property filter (mirrors the dashboard) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 bg-white border border-stone-200 rounded-xl p-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {chips.map((c) => (
+            <Link
+              key={c.label}
+              href={`/reports?from=${format(c.from, "yyyy-MM-dd")}&to=${format(c.to, "yyyy-MM-dd")}${propQ}`}
+              className={`px-3 py-1 text-xs rounded-full border ${
+                c.active
+                  ? "bg-teal-700 text-white border-teal-700"
+                  : "bg-white border-stone-200 text-stone-700 hover:border-teal-400 hover:bg-stone-50"
+              }`}
+            >
+              {c.label}
+            </Link>
+          ))}
+          <form
+            action="/reports"
+            method="GET"
+            className="inline-flex items-center gap-1 ml-1"
+          >
+            <input
+              type="date"
+              name="from"
+              defaultValue={rangeStartStr}
+              className="text-xs border border-stone-200 rounded-md px-1.5 py-1 bg-white"
+              aria-label="From date"
+            />
+            <span className="text-xs text-stone-400">→</span>
+            <input
+              type="date"
+              name="to"
+              defaultValue={rangeEndStr}
+              className="text-xs border border-stone-200 rounded-md px-1.5 py-1 bg-white"
+              aria-label="To date"
+            />
+            {propertyId && (
+              <input type="hidden" name="property" value={propertyId} />
+            )}
+            <button
+              type="submit"
+              className="text-xs text-teal-700 hover:text-teal-800 px-2 py-1"
+            >
+              Go
+            </button>
+          </form>
+        </div>
+        <form action="/reports" method="GET" className="flex items-center gap-2">
+          <input type="hidden" name="from" value={rangeStartStr} />
+          <input type="hidden" name="to" value={rangeEndStr} />
+          <select
+            name="property"
+            defaultValue={propertyId || "all"}
+            className="text-sm border border-stone-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal-600"
+          >
+            <option value="all">All rental homes</option>
+            {properties.map((p: any) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="text-xs text-teal-700 hover:text-teal-800 px-2 py-1"
+          >
+            Apply
+          </button>
+        </form>
+      </div>
+
+      {/* Hero "Actual Profit" card — mirrors the dashboard so numbers obviously line up */}
+      <div className="relative bg-gradient-to-br from-emerald-900 via-stone-900 to-stone-900 text-white rounded-2xl p-5 sm:p-6 mb-6 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent pointer-events-none" />
+        <div className="relative">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div className="text-[11px] uppercase tracking-wider text-emerald-300/80">
+              Actual profit · {rangeLabel}
+            </div>
+            {profitDelta !== null && (
+              <span
+                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                  profitDelta >= 0
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : "bg-rose-500/20 text-rose-300"
+                }`}
+              >
+                {profitDelta >= 0 ? (
+                  <TrendingUp className="w-3.5 h-3.5" />
+                ) : (
+                  <TrendingDown className="w-3.5 h-3.5" />
+                )}
+                {profitDelta >= 0 ? "+" : ""}
+                {profitDelta}% vs previous
+              </span>
+            )}
+          </div>
+          <div
+            className={`text-3xl sm:text-5xl font-semibold tracking-tight ${
+              totals.actualProfit >= 0 ? "text-emerald-400" : "text-rose-400"
+            }`}
+          >
+            ${totals.actualProfit.toLocaleString()}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5 text-sm">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-stone-400 mb-0.5">
+                Rent income
+              </div>
+              <div className="text-emerald-300 font-semibold">
+                ${totals.rentIncome.toLocaleString()}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-stone-400 mb-0.5">
+                Operating exp
+              </div>
+              <div className="font-semibold">
+                ${totals.opEx.toLocaleString()}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-stone-400 mb-0.5">
+                Debt service
+              </div>
+              <div className="font-semibold">
+                ${totals.debtService.toLocaleString()}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-stone-400 mb-0.5">
+                Margin
+              </div>
+              <div className="font-semibold">{totals.margin}%</div>
+            </div>
+          </div>
+          <div className="mt-4 text-[11px] text-stone-400">
+            Open the dashboard with the same period to verify —{" "}
+            <Link
+              href={`/dashboard?from=${rangeStartStr}&to=${rangeEndStr}${propQ}`}
+              className="underline text-emerald-300 hover:text-emerald-200"
+            >
+              View dashboard with these filters →
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* P&L statement — same formula as the dashboard */}
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden mb-6">
         <div className="flex items-baseline justify-between px-4 py-3 border-b border-stone-100">
-          <h2 className="font-medium">Profit &amp; Loss · {year}</h2>
+          <h2 className="font-medium">Profit &amp; Loss · {rangeLabel}</h2>
           <span className="text-xs text-stone-500">Operating margin {totalMargin}%</span>
         </div>
         <div className="px-4 py-3 grid grid-cols-[1fr_auto] gap-x-6 text-sm">
@@ -260,7 +553,7 @@ export default async function ReportsPage() {
         <div className="px-4 py-3 border-b border-stone-100">
           <h2 className="font-medium">Contractors paid &ge; $600 (1099-NEC candidates)</h2>
           <p className="text-xs text-stone-500 mt-0.5">
-            You may need to issue a 1099-NEC to anyone listed below for {year}.
+            You may need to issue a 1099-NEC to anyone listed below for {calendarYear}.
           </p>
         </div>
         {vendors1099.length === 0 ? (

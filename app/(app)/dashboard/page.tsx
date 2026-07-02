@@ -530,6 +530,7 @@ export default async function DashboardPage({
         progressPct={periodProgress}
         isCurrentMonth={isCurrentMonth}
         rangeStart={rangeStart}
+        reportHref={`/reports?from=${rangeStartStr}&to=${rangeEndStr}${propQ}`}
       />
 
       {/* Onboarding checklist */}
@@ -912,6 +913,7 @@ function ActualProfitHero({
   progressPct,
   isCurrentMonth,
   rangeStart,
+  reportHref,
 }: {
   rangeLabel: string;
   actualProfit: number;
@@ -922,6 +924,7 @@ function ActualProfitHero({
   progressPct: number;
   isCurrentMonth: boolean;
   rangeStart: Date;
+  reportHref: string;
 }) {
   const positive = actualProfit >= 0;
   const deltaPositive = (deltaPct ?? 0) >= 0;
@@ -1005,6 +1008,16 @@ function ActualProfitHero({
             </div>
           </div>
         )}
+
+        <div className="mt-4 pt-4 border-t border-white/10 text-[11px] text-stone-400">
+          Numbers should match the P&amp;L Report for the same range —{" "}
+          <Link
+            href={reportHref}
+            className="underline text-emerald-300 hover:text-emerald-200"
+          >
+            Open detailed P&amp;L →
+          </Link>
+        </div>
       </div>
     </div>
   );
