@@ -43,10 +43,14 @@ export const CONSTRUCTION_CATEGORIES = [
   "other",
 ];
 
-const CATEGORY_OPTIONS = CONSTRUCTION_CATEGORIES.map((c) => ({
-  value: c,
-  label: c.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-}));
+const CUSTOM_SENTINEL = "__custom__";
+const CATEGORY_OPTIONS = [
+  ...CONSTRUCTION_CATEGORIES.map((c) => ({
+    value: c,
+    label: c.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+  })),
+  { value: CUSTOM_SENTINEL, label: "Custom…" },
+];
 
 const QUICK_CHIPS: { value: string; label: string }[] = [
   { value: "materials", label: "Materials" },
@@ -103,6 +107,16 @@ export default function ConstructionExpenseForm({
   const vendorListId = useId();
   const amountRef = useRef<HTMLInputElement | null>(null);
 
+  // If we're editing an expense whose category isn't in the standard list,
+  // treat it as a custom label and prefill the free-form input.
+  const initialIsCustom =
+    mode === "edit" &&
+    !!initial?.category &&
+    !CONSTRUCTION_CATEGORIES.includes(initial.category);
+  const [customCategory, setCustomCategory] = useState(
+    initialIsCustom ? String(initial?.category ?? "") : ""
+  );
+
   const {
     register,
     handleSubmit,
@@ -118,7 +132,7 @@ export default function ConstructionExpenseForm({
             project_id: projectId,
             expense_date: initial.expense_date,
             amount: initial.amount,
-            category: initial.category,
+            category: initialIsCustom ? CUSTOM_SENTINEL : initial.category,
             description: initial.description,
             vendor: initial.vendor,
             notes: initial.notes,
@@ -129,18 +143,21 @@ export default function ConstructionExpenseForm({
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && initial) {
+      const isCustom = !CONSTRUCTION_CATEGORIES.includes(initial.category);
       reset({
         project_id: projectId,
         expense_date: initial.expense_date,
         amount: initial.amount,
-        category: initial.category,
+        category: isCustom ? CUSTOM_SENTINEL : initial.category,
         description: initial.description,
         vendor: initial.vendor,
         notes: initial.notes,
       });
+      setCustomCategory(isCustom ? initial.category : "");
     } else {
       reset(emptyDefaults(projectId));
       setPendingFiles([]);
+      setCustomCategory("");
     }
   }, [open, mode, initial, projectId, reset]);
 
@@ -156,10 +173,30 @@ export default function ConstructionExpenseForm({
       return;
     }
 
+    // If Custom is picked, use the typed label; snake-cased so it matches
+    // the shape of the built-in categories.
+    let finalCategory = values.category;
+    if (values.category === CUSTOM_SENTINEL) {
+      const trimmed = customCategory.trim();
+      if (!trimmed) {
+        toast.error("Enter a name for the custom category");
+        return;
+      }
+      finalCategory = trimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9\s_-]/g, "")
+        .replace(/[\s-]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+      if (!finalCategory) {
+        toast.error("Custom category name is invalid");
+        return;
+      }
+    }
+
     const payload = {
       expense_date: values.expense_date,
       amount: values.amount,
-      category: values.category,
+      category: finalCategory,
       description: values.description,
       vendor: values.vendor || null,
       notes: values.notes || null,
@@ -301,6 +338,17 @@ export default function ConstructionExpenseForm({
             error={errors.category?.message}
             {...register("category")}
           />
+
+          {selectedCategory === CUSTOM_SENTINEL && (
+            <Input
+              label="Custom category name"
+              required
+              placeholder="e.g. site survey"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              hint="Free-form label. Saved lower-case with underscores so it groups on reports."
+            />
+          )}
 
           <Input
             label="Description"
