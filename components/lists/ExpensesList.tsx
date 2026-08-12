@@ -77,7 +77,8 @@ export default function ExpensesList({ expenses, properties }: Props) {
           e.properties?.name?.toLowerCase().includes(q)
       );
     }
-    if (propertyId !== "all") list = list.filter((e) => e.property_id === propertyId);
+    if (propertyId === "general") list = list.filter((e) => !e.property_id);
+    else if (propertyId !== "all") list = list.filter((e) => e.property_id === propertyId);
     if (category !== "all") list = list.filter((e) => e.category === category);
     if (year !== "all") list = list.filter((e) => parseDbDate(e.expense_date).getFullYear().toString() === year);
     if (month !== "all") list = list.filter((e) => parseDbDate(e.expense_date).getMonth().toString() === month);
@@ -102,6 +103,7 @@ export default function ExpensesList({ expenses, properties }: Props) {
   const propOptions = [
     { value: "all", label: "All rental homes" },
     ...properties.map((p) => ({ value: p.id, label: p.name })),
+    { value: "general", label: "Custom / Other (no property)" },
   ];
 
   return (
@@ -153,7 +155,11 @@ export default function ExpensesList({ expenses, properties }: Props) {
                     <td className="px-4 py-3 text-stone-600">
                       {format(parseDbDate(e.expense_date), "MMM d, yyyy")}
                     </td>
-                    <td className="px-4 py-3">{e.properties?.name}</td>
+                    <td className="px-4 py-3">
+                      {e.properties?.name || (
+                        <span className="text-stone-500 italic">Custom / Other</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">{e.description}</td>
                     <td className="px-4 py-3 text-stone-600 capitalize">
                       {e.category.replace("_", " ")}
@@ -193,7 +199,9 @@ export default function ExpensesList({ expenses, properties }: Props) {
                 <div className="flex justify-between items-start">
                   <div className="min-w-0">
                     <div className="font-medium truncate">{e.description}</div>
-                    <div className="text-xs text-stone-500 truncate">{e.properties?.name}</div>
+                    <div className="text-xs text-stone-500 truncate">
+                      {e.properties?.name || "Custom / Other"}
+                    </div>
                     <div className="text-xs text-stone-500 mt-1 capitalize">
                       {format(parseDbDate(e.expense_date), "MMM d, yyyy")} ·{" "}
                       {e.category.replace("_", " ")}

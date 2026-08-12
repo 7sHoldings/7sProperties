@@ -47,6 +47,9 @@ const CONSTRUCTION_CATEGORY_OPTIONS = [
 // projects in a single dropdown ("prop:UUID" vs "proj:UUID").
 const PROP_PREFIX = "prop:";
 const PROJ_PREFIX = "proj:";
+// Sentinel for an expense not tied to any property or project — saved to
+// `expenses` with property_id = NULL.
+const GENERAL_VALUE = "general";
 function isConstructionSelection(v: string) {
   return v.startsWith(PROJ_PREFIX);
 }
@@ -69,11 +72,14 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
   const [projects, setProjects] = useState<any[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
-  // Edit mode currently only works for rental expenses (rows already in
-  // `expenses`), so the initial selection always maps to a property.
+  // Edit mode currently only works for rows already in `expenses`, so the
+  // initial selection maps to a property — or to "general" when the saved row
+  // has no property (a custom/other expense).
   const initialSelectValue = initial?.property_id
     ? `${PROP_PREFIX}${initial.property_id}`
-    : "";
+    : mode === "edit"
+      ? GENERAL_VALUE
+      : "";
 
   // If the existing category isn't in the standard list, open the custom field
   // pre-filled with it (edit mode where a user previously typed a custom label).
@@ -176,6 +182,7 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
 
     const rawTarget = values.property_id || "";
     const targetIsConstruction = isConstructionSelection(rawTarget);
+    const targetIsGeneral = rawTarget === GENERAL_VALUE;
     const targetId = stripPrefix(rawTarget);
 
     if (mode === "create") {
@@ -223,7 +230,7 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
         .from("expenses")
         .insert({
           owner_id: user.id,
-          property_id: targetId,
+          property_id: targetIsGeneral ? null : targetId,
           expense_date: values.expense_date,
           amount: values.amount,
           category: finalCategory,
@@ -251,12 +258,12 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
       router.refresh();
       return;
     } else {
-      // Edit path only handles rental expenses today. Ignore prefix mangling
-      // and pass the raw UUID.
+      // Edit path only handles rows in `expenses` (rental or general). Ignore
+      // prefix mangling and pass the raw UUID, or NULL for custom/other.
       const { error } = await supabase
         .from("expenses")
         .update({
-          property_id: targetId,
+          property_id: targetIsGeneral ? null : targetId,
           expense_date: values.expense_date,
           amount: values.amount,
           category: finalCategory,
@@ -285,11 +292,7 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
         label="Property or construction project"
         required
         error={errors.property_id?.message}
-        hint={
-          mode === "create" && projects.length > 0
-            ? "Rental homes and in-progress builds both accept expenses."
-            : undefined
-        }
+        hint={'Pick "Custom / other expense" for a cost not tied to any property — it still counts toward your expense totals.'}
       >
         <select
           required
@@ -322,6 +325,11 @@ export default function ExpenseForm({ mode, expenseId, initial }: Props) {
               ))}
             </optgroup>
           )}
+          <optgroup label="Other">
+            <option value={GENERAL_VALUE}>
+              Custom / other expense (no property)
+            </option>
+          </optgroup>
         </select>
       </Field>
 

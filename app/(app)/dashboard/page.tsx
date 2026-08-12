@@ -886,7 +886,9 @@ export default async function DashboardPage({
                 >
                   <div className="min-w-0">
                     <div className="truncate">{e.description}</div>
-                    <div className="text-xs text-stone-500 truncate">{e.properties?.name}</div>
+                    <div className="text-xs text-stone-500 truncate">
+                      {e.properties?.name || "Custom / Other"}
+                    </div>
                   </div>
                   <span className="text-red-700 font-medium whitespace-nowrap">
                     −${Number(e.amount).toLocaleString()}

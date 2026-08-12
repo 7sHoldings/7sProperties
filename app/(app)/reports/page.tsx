@@ -162,8 +162,14 @@ export default async function ReportsPage({
   });
   const opExByProp: Record<string, number> = {};
   const debtServiceByProp: Record<string, number> = {};
+  let generalOpEx = 0;
   expenses.forEach((e: any) => {
-    if (!e.property_id) return;
+    if (!e.property_id) {
+      // Custom/other expenses (no property) — counted in totals above,
+      // surfaced as their own row under the per-property table.
+      generalOpEx += Number(e.amount);
+      return;
+    }
     if (e.category === "mortgage") {
       debtServiceByProp[e.property_id] =
         (debtServiceByProp[e.property_id] || 0) + Number(e.amount);
@@ -506,6 +512,17 @@ export default async function ReportsPage({
                     </tr>
                   );
                 })}
+                {generalOpEx > 0 && (
+                  <tr className="border-t border-stone-100 text-stone-500 italic">
+                    <td className="px-4 py-2.5" colSpan={2}>
+                      Custom / other expenses (no property)
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-red-700 not-italic">
+                      ${generalOpEx.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2.5" colSpan={3} />
+                  </tr>
+                )}
                 {generalDist > 0 && (
                   <tr className="border-t border-stone-100 text-stone-500 italic">
                     <td className="px-4 py-2.5" colSpan={5}>

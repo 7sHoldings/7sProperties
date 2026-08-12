@@ -77,7 +77,7 @@ export default function CsvExportButtons({ year }: { year: number }) {
     (data || []).forEach((e: any) => {
       rows.push([
         e.expense_date,
-        e.properties?.name || "",
+        e.properties?.name || "Custom / Other",
         e.category,
         e.description,
         e.vendor || "",
