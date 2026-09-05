@@ -43,6 +43,9 @@ export default async function TenantDetailPage({
   const leases = (leasesRes.data || []) as any[];
   const payments = (paymentsRes.data || []) as any[];
   const totalPaid = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const depositsPaid = payments
+    .filter((p: any) => p.payment_type === "deposit")
+    .reduce((s: number, p: any) => s + Number(p.amount), 0);
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
@@ -83,7 +86,11 @@ export default async function TenantDetailPage({
       <div className="grid grid-cols-3 gap-3 mb-6">
         <Stat label="Active leases" value={leases.filter((l: any) => l.status === "active").length} />
         <Stat label="Total payments" value={payments.length} />
-        <Stat label="Lifetime paid" value={`$${totalPaid.toLocaleString()}`} />
+        <Stat
+          label="Lifetime paid"
+          value={`$${totalPaid.toLocaleString()}`}
+          hint={depositsPaid > 0 ? `incl. $${depositsPaid.toLocaleString()} deposits` : undefined}
+        />
       </div>
 
       {(() => {
@@ -148,7 +155,14 @@ export default async function TenantDetailPage({
               {payments.map((p: any) => (
                 <li key={p.id} className="flex justify-between py-2">
                   <div>
-                    <div>{format(parseDbDate(p.payment_date), "MMM d, yyyy")}</div>
+                    <div className="flex items-center gap-1.5">
+                      {format(parseDbDate(p.payment_date), "MMM d, yyyy")}
+                      {p.payment_type === "deposit" && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800">
+                          Deposit
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-stone-500">For {format(parseDbDate(p.for_month), "MMM yyyy")}</div>
                   </div>
                   <span className="text-green-700 font-medium">${Number(p.amount).toLocaleString()}</span>
@@ -182,11 +196,20 @@ export default async function TenantDetailPage({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function Stat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
   return (
     <div className="bg-white border border-stone-200 rounded-xl p-4">
       <div className="text-xs text-stone-500 mb-1">{label}</div>
       <div className="text-lg font-medium">{value}</div>
+      {hint && <div className="text-xs text-stone-500 mt-0.5">{hint}</div>}
     </div>
   );
 }

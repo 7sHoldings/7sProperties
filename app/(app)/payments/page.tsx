@@ -14,11 +14,17 @@ export default async function PaymentsPage() {
       .from("leases")
       .select("*, tenants(full_name), units(unit_label, properties(id, name))")
       .eq("status", "active"),
-    supabase.from("payments").select("lease_id, amount").eq("for_month", monthStart),
+    // Rent collection status only counts rent — security deposits are held for
+    // the tenant, not income, so they never close out a rent month.
+    supabase
+      .from("payments")
+      .select("lease_id, amount")
+      .eq("for_month", monthStart)
+      .neq("payment_type", "deposit"),
     supabase
       .from("payments")
       .select(
-        "id, amount, payment_date, for_month, payment_method, reference_number, processor_status, leases(tenants(full_name), units(unit_label, properties(id, name)))"
+        "id, amount, payment_date, for_month, payment_type, payment_method, reference_number, processor_status, leases(tenants(full_name), units(unit_label, properties(id, name)))"
       )
       .order("payment_date", { ascending: false }),
     supabase.from("properties").select("id, name").order("name"),
@@ -43,7 +49,9 @@ export default async function PaymentsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-medium">Rent collection</h1>
-          <p className="text-sm text-stone-500">{format(new Date(), "MMMM yyyy")}</p>
+          <p className="text-sm text-stone-500">
+            {format(new Date(), "MMMM yyyy")} · rent only (deposits excluded)
+          </p>
         </div>
         <Link
           href="/payments/new"

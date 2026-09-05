@@ -55,6 +55,8 @@ export default function TenantLedger({ lease }: Props) {
         .from("payments")
         .select("id, amount, payment_date, for_month")
         .eq("lease_id", lease.id)
+        // Deposits don't pay down rent owed — they live in the deposit ledger.
+        .neq("payment_type", "deposit")
         .order("for_month", { ascending: true }),
       supabase
         .from("tenant_charges")

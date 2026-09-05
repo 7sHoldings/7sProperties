@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +23,7 @@ export default function DepositLedger({ leaseId, initialDeposit }: Props) {
   const supabase = createClient();
   const router = useRouter();
   const [txs, setTxs] = useState<any[]>([]);
+  const [received, setReceived] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
@@ -41,12 +43,23 @@ export default function DepositLedger({ leaseId, initialDeposit }: Props) {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase
-      .from("deposit_transactions")
-      .select("*")
-      .eq("lease_id", leaseId)
-      .order("transaction_date", { ascending: false });
-    setTxs(data || []);
+    const [txRes, payRes] = await Promise.all([
+      supabase
+        .from("deposit_transactions")
+        .select("*")
+        .eq("lease_id", leaseId)
+        .order("transaction_date", { ascending: false }),
+      // Deposits collected through the payments form
+      supabase
+        .from("payments")
+        .select("amount")
+        .eq("lease_id", leaseId)
+        .eq("payment_type", "deposit"),
+    ]);
+    setTxs(txRes.data || []);
+    setReceived(
+      (payRes.data || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+    );
     setLoading(false);
   }
 
@@ -60,7 +73,10 @@ export default function DepositLedger({ leaseId, initialDeposit }: Props) {
   const deducted = txs
     .filter((t) => t.transaction_type === "deduction")
     .reduce((s, t) => s + Number(t.amount), 0);
-  const stillHeld = Number(initialDeposit) - refunded - deducted;
+  // The lease's agreed deposit is the source of truth; if none was set on the
+  // lease, fall back to what was actually collected on the payments form.
+  const heldBase = Number(initialDeposit) || received;
+  const stillHeld = heldBase - refunded - deducted;
 
   async function onSubmit(values: DepositTxInput) {
     const {
@@ -96,10 +112,14 @@ export default function DepositLedger({ leaseId, initialDeposit }: Props) {
     load();
   }
 
-  if (!initialDeposit) {
+  if (!heldBase && !loading) {
     return (
       <div className="bg-white border border-stone-200 rounded-xl p-4 text-sm text-stone-500">
-        No security deposit on file for this lease.
+        No security deposit on file for this lease. Record one from{" "}
+        <Link href={`/payments/new?lease_id=${leaseId}&type=deposit`} className="text-teal-700 hover:underline">
+          Payments
+        </Link>
+        , or set it on the lease.
       </div>
     );
   }
@@ -110,12 +130,20 @@ export default function DepositLedger({ leaseId, initialDeposit }: Props) {
         <div>
           <h2 className="font-medium">Security deposit</h2>
           <p className="text-xs text-stone-500">
-            Held: ${Number(initialDeposit).toLocaleString()} · Deducted: ${deducted.toLocaleString()}{" "}
+            Held: ${heldBase.toLocaleString()} · Deducted: ${deducted.toLocaleString()}{" "}
             · Refunded: ${refunded.toLocaleString()} ·{" "}
             <span className="font-medium text-stone-700">
               Still held: ${stillHeld.toLocaleString()}
             </span>
           </p>
+          {received > 0 && (
+            <p className="text-xs text-stone-500 mt-0.5">
+              Collected via payments: ${received.toLocaleString()}
+              {Number(initialDeposit) > 0 && received !== Number(initialDeposit)
+                ? ` of $${Number(initialDeposit).toLocaleString()} on the lease`
+                : ""}
+            </p>
+          )}
         </div>
         {stillHeld > 0 && (
           <button

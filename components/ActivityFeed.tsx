@@ -36,7 +36,7 @@ export default async function ActivityFeed() {
   const [paymentsRes, expensesRes, maintRes, tenantsRes, distRes] = await Promise.all([
     supabase
       .from("payments")
-      .select("id, amount, payment_date, created_at, leases(tenants(full_name))")
+      .select("id, amount, payment_date, payment_type, created_at, leases(tenants(full_name))")
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
@@ -68,7 +68,9 @@ export default async function ActivityFeed() {
       id: `pay-${p.id}`,
       type: "payment",
       date: p.created_at,
-      title: `Payment from ${p.leases?.tenants?.full_name || "tenant"}`,
+      title: `${p.payment_type === "deposit" ? "Deposit" : "Payment"} from ${
+        p.leases?.tenants?.full_name || "tenant"
+      }`,
       subtitle: format(parseDbDate(p.payment_date), "MMM d, yyyy"),
       href: `/payments/${p.id}/edit`,
       amount: Number(p.amount),

@@ -92,6 +92,7 @@ export async function POST(req: Request) {
     await supabase.from("payments").insert({
       owner_id: lease.owner_id,
       lease_id: lease.id,
+      payment_type: "rent",
       amount,
       payment_date: new Date().toISOString().slice(0, 10),
       for_month: forMonth,

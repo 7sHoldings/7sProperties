@@ -38,19 +38,20 @@ export default function CsvExportButtons({ year }: { year: number }) {
     const { data } = await supabase
       .from("payments")
       .select(
-        "payment_date, for_month, amount, payment_method, reference_number, leases(tenants(full_name), units(properties(name)))"
+        "payment_date, for_month, payment_type, amount, payment_method, reference_number, leases(tenants(full_name), units(properties(name)))"
       )
       .gte("payment_date", yearStart)
       .lte("payment_date", yearEnd)
       .order("payment_date");
     setBusy(null);
     const rows: any[][] = [
-      ["Date", "For month", "Tenant", "Property", "Method", "Reference", "Amount"],
+      ["Date", "For month", "Type", "Tenant", "Property", "Method", "Reference", "Amount"],
     ];
     (data || []).forEach((p: any) => {
       rows.push([
         p.payment_date,
         p.for_month,
+        p.payment_type === "deposit" ? "Deposit" : "Rent",
         p.leases?.tenants?.full_name || "",
         p.leases?.units?.properties?.name || "",
         p.payment_method || "",

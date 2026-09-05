@@ -12,7 +12,10 @@ export default function NewPaymentPage() {
         <span>›</span>
         <span className="text-stone-900">Record</span>
       </div>
-      <h1 className="text-2xl font-medium mb-6">Record payment</h1>
+      <h1 className="text-2xl font-medium mb-1">Record payment</h1>
+      <p className="text-sm text-stone-500 mb-6">
+        Rent or a security deposit — pick the type below.
+      </p>
       <Suspense fallback={<div className="text-stone-500">Loading...</div>}>
         <PaymentForm mode="create" />
       </Suspense>

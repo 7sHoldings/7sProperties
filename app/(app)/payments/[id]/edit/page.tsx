@@ -59,6 +59,7 @@ export default function EditPaymentPage({
               paymentId={id}
               initial={{
                 lease_id: payment.lease_id,
+                payment_type: payment.payment_type === "deposit" ? "deposit" : "rent",
                 payment_date: payment.payment_date,
                 for_month: payment.for_month,
                 amount: payment.amount,

@@ -97,6 +97,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export const paymentSchema = z.object({
   lease_id: z.string().min(1, "Select a lease"),
+  payment_type: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? "rent" : v),
+    z.enum(["rent", "deposit"])
+  ),
   payment_date: z
     .string()
     .min(1, "Date is required")

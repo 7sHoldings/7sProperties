@@ -88,9 +88,12 @@ export default async function ReportsPage({
   ] = await Promise.all([
     supabase.from("properties").select("id, name").order("name"),
     // Selected range
+    // Rent income excludes security deposits — deposits are held for the
+    // tenant, not earned revenue.
     supabase
       .from("payments")
       .select("amount, leases(units(property_id))")
+      .neq("payment_type", "deposit")
       .gte("for_month", rangeStartStr)
       .lte("for_month", rangeEndStr),
     supabase
@@ -117,6 +120,7 @@ export default async function ReportsPage({
     supabase
       .from("payments")
       .select("amount, leases(units(property_id))")
+      .neq("payment_type", "deposit")
       .gte("for_month", prevStartStr)
       .lte("for_month", prevEndStr),
     supabase

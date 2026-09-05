@@ -131,12 +131,15 @@ export default async function DashboardPage({
         "id, monthly_rent, end_date, status, tenant_id, unit_id, units(property_id), tenants(full_name)"
       )
       .eq("status", "active"),
-    // Selected-range payments — include lease/unit so we can filter by property
+    // Selected-range rent payments — include lease/unit so we can filter by
+    // property. Security deposits are held money, not income, so they are left
+    // out of every P&L and cashflow figure below.
     supabase
       .from("payments")
       .select(
         "id, amount, payment_date, lease_id, leases(units(property_id), tenants(full_name))"
       )
+      .neq("payment_type", "deposit")
       .gte("for_month", rangeStartStr)
       .lte("for_month", rangeEndStr)
       .order("payment_date", { ascending: false }),
@@ -150,6 +153,7 @@ export default async function DashboardPage({
     supabase
       .from("payments")
       .select("amount, for_month, leases(units(property_id))")
+      .neq("payment_type", "deposit")
       .gte("for_month", yearStart),
     supabase
       .from("expenses")
@@ -163,6 +167,7 @@ export default async function DashboardPage({
     supabase
       .from("payments")
       .select("amount, for_month, leases(units(property_id))")
+      .neq("payment_type", "deposit")
       .gte("for_month", cashflowSince),
     supabase
       .from("expenses")
@@ -194,6 +199,7 @@ export default async function DashboardPage({
     supabase
       .from("payments")
       .select("amount, for_month, leases(units(property_id))")
+      .neq("payment_type", "deposit")
       .gte("for_month", prevStartStr)
       .lte("for_month", prevEndStr),
     supabase

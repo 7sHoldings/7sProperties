@@ -29,7 +29,7 @@ export default async function TenantPaymentsPage() {
   const { data: payments } = await supabase
     .from("payments")
     .select(
-      "id, amount, payment_date, for_month, payment_method, reference_number, lease_id, processor_status, leases(units(properties(name)))"
+      "id, amount, payment_date, for_month, payment_type, payment_method, reference_number, lease_id, processor_status, leases(units(properties(name)))"
     )
     .order("payment_date", { ascending: false });
 
@@ -85,6 +85,7 @@ export default async function TenantPaymentsPage() {
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">Date</th>
                   <th className="text-left px-4 py-2 font-medium">For month</th>
+                  <th className="text-left px-4 py-2 font-medium">Type</th>
                   <th className="text-left px-4 py-2 font-medium">Property</th>
                   <th className="text-left px-4 py-2 font-medium">Method</th>
                   <th className="text-left px-4 py-2 font-medium">Status</th>
@@ -99,6 +100,17 @@ export default async function TenantPaymentsPage() {
                     </td>
                     <td className="px-4 py-3 text-stone-600">
                       {format(parseDbDate(p.for_month), "MMM yyyy")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${
+                          p.payment_type === "deposit"
+                            ? "bg-indigo-50 text-indigo-800"
+                            : "bg-stone-100 text-stone-700"
+                        }`}
+                      >
+                        {p.payment_type === "deposit" ? "Deposit" : "Rent"}
+                      </span>
                     </td>
                     <td className="px-4 py-3">{p.leases?.units?.properties?.name || "—"}</td>
                     <td className="px-4 py-3 text-stone-600 capitalize">
@@ -134,6 +146,7 @@ export default async function TenantPaymentsPage() {
                       {format(parseDbDate(p.payment_date), "MMM d, yyyy")}
                     </div>
                     <div className="text-xs text-stone-500">
+                      {p.payment_type === "deposit" ? "Deposit · " : ""}
                       For {format(parseDbDate(p.for_month), "MMM yyyy")} ·{" "}
                       {(p.payment_method || "—").replace("_", " ")}
                     </div>

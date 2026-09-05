@@ -38,6 +38,8 @@ export default async function TenantDashboard() {
     supabase
       .from("payments")
       .select("id, amount, payment_date, for_month, payment_method")
+      // Rent due for the month is unaffected by a deposit payment.
+      .neq("payment_type", "deposit")
       .gte("for_month", monthStart)
       .lte("for_month", monthEnd),
     supabase

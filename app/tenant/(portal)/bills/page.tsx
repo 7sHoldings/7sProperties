@@ -35,7 +35,9 @@ export default async function TenantBillsPage() {
       .order("start_date", { ascending: false }),
     supabase
       .from("payments")
-      .select("amount, payment_date, for_month, lease_id, processor_status"),
+      .select("amount, payment_date, for_month, lease_id, processor_status")
+      // The rent timeline tracks rent only; deposits aren't rent owed.
+      .neq("payment_type", "deposit"),
     supabase
       .from("tenant_payment_methods")
       .select("*")

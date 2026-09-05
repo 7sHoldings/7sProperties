@@ -45,6 +45,7 @@ const commands: Command[] = [
   { id: "new-cnst", label: "New construction project", hint: "Create new", href: "/construction/new", icon: Plus, group: "create" },
   { id: "new-ten", label: "Add tenant", hint: "Create new", href: "/tenants/new", icon: Plus, group: "create" },
   { id: "new-pay", label: "Record payment", hint: "Create new", href: "/payments/new", icon: Plus, group: "create" },
+  { id: "new-dep", label: "Record deposit", hint: "Security deposit", href: "/payments/new?type=deposit", icon: Plus, group: "create" },
   { id: "new-exp", label: "Add expense", hint: "Create new", href: "/expenses/new", icon: Plus, group: "create" },
   { id: "new-mnt", label: "New maintenance", hint: "Create new", href: "/maintenance/new", icon: Plus, group: "create" },
   { id: "new-mil", label: "Log mileage", hint: "Create new", href: "/mileage/new", icon: Plus, group: "create" },

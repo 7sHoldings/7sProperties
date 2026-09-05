@@ -35,7 +35,9 @@ export default async function PropertyDetailPage({
       .order("start_date", { ascending: false }),
     supabase
       .from("payments")
-      .select("id, amount, payment_date, for_month, leases!inner(units!inner(property_id), tenants(full_name))")
+      .select(
+        "id, amount, payment_date, for_month, payment_type, leases!inner(units!inner(property_id), tenants(full_name))"
+      )
       .eq("leases.units.property_id", id)
       .order("payment_date", { ascending: false })
       .limit(10),
@@ -51,10 +53,12 @@ export default async function PropertyDetailPage({
       .eq("property_id", id)
       .order("reported_date", { ascending: false })
       .limit(10),
+    // Cashflow counts rent only — deposits are held for the tenant, not income.
     supabase
       .from("payments")
       .select("amount, for_month, leases!inner(units!inner(property_id))")
       .eq("leases.units.property_id", id)
+      .neq("payment_type", "deposit")
       .gte("for_month", cashflowSince),
     supabase
       .from("expenses")
@@ -252,7 +256,14 @@ export default async function PropertyDetailPage({
             <ul className="text-sm divide-y divide-stone-100">
               {payments.map((p: any) => (
                 <li key={p.id} className="flex justify-between py-2">
-                  <span>{p.leases?.tenants?.full_name || "—"}</span>
+                  <span>
+                    {p.leases?.tenants?.full_name || "—"}
+                    {p.payment_type === "deposit" && (
+                      <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800">
+                        Deposit
+                      </span>
+                    )}
+                  </span>
                   <span className="text-green-700">${Number(p.amount).toLocaleString()}</span>
                 </li>
               ))}

@@ -16,6 +16,12 @@ const SORTS = [
   { value: "amount_low", label: "Amount (low)" },
 ];
 
+const TYPES = [
+  { value: "all", label: "Rent + deposits" },
+  { value: "rent", label: "Rent only" },
+  { value: "deposit", label: "Deposits only" },
+];
+
 const METHODS = [
   { value: "all", label: "All methods" },
   { value: "bank_transfer", label: "Bank transfer" },
@@ -42,6 +48,12 @@ const MONTHS = [
   { value: "11", label: "Dec" },
 ];
 
+// Rows recorded before the deposit field existed have no payment_type; they
+// are all rent.
+function paymentType(p: any): "rent" | "deposit" {
+  return p.payment_type === "deposit" ? "deposit" : "rent";
+}
+
 type Props = {
   payments: any[];
   properties: { id: string; name: string }[];
@@ -54,6 +66,7 @@ export default function PaymentsList({ payments, properties }: Props) {
   const [search, setSearch] = useState("");
   const [propertyId, setPropertyId] = useState("all");
   const [method, setMethod] = useState("all");
+  const [type, setType] = useState("all");
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
   const [sort, setSort] = useState("date_desc");
@@ -82,6 +95,9 @@ export default function PaymentsList({ payments, properties }: Props) {
     if (method !== "all") {
       list = list.filter((p) => p.payment_method === method);
     }
+    if (type !== "all") {
+      list = list.filter((p) => paymentType(p) === type);
+    }
     if (year !== "all") {
       list = list.filter((p) => parseDbDate(p.payment_date).getFullYear().toString() === year);
     }
@@ -103,16 +119,19 @@ export default function PaymentsList({ payments, properties }: Props) {
       }
     });
     return list;
-  }, [payments, search, propertyId, method, year, month, sort]);
+  }, [payments, search, propertyId, method, type, year, month, sort]);
 
   const propOptions = useMemo(
     () => [{ value: "all", label: "All rental homes" }, ...properties.map((p) => ({ value: p.id, label: p.name }))],
     [properties]
   );
 
-  const totalAmount = filtered
-    .filter((p) => p.processor_status !== "failed")
+  const counted = filtered.filter((p) => p.processor_status !== "failed");
+  const totalAmount = counted.reduce((s, p) => s + Number(p.amount), 0);
+  const depositTotal = counted
+    .filter((p) => paymentType(p) === "deposit")
     .reduce((s, p) => s + Number(p.amount), 0);
+  const rentTotal = totalAmount - depositTotal;
 
   return (
     <>
@@ -122,6 +141,7 @@ export default function PaymentsList({ payments, properties }: Props) {
         searchPlaceholder="Search tenant, property, or reference..."
         filters={[
           { id: "property", label: "Property", value: propertyId, onChange: setPropertyId, options: propOptions },
+          { id: "type", label: "Type", value: type, onChange: setType, options: TYPES },
           { id: "method", label: "Method", value: method, onChange: setMethod, options: METHODS },
           { id: "year", label: "Year", value: year, onChange: setYear, options: years },
           { id: "month", label: "Month", value: month, onChange: setMonth, options: [{ value: "all", label: "All" }, ...MONTHS] },
@@ -145,6 +165,7 @@ export default function PaymentsList({ payments, properties }: Props) {
                   <th className="text-left px-4 py-2 font-medium">Tenant</th>
                   <th className="text-left px-4 py-2 font-medium">Property</th>
                   <th className="text-left px-4 py-2 font-medium">For</th>
+                  <th className="text-left px-4 py-2 font-medium">Type</th>
                   <th className="text-left px-4 py-2 font-medium">Method</th>
                   <th className="text-left px-4 py-2 font-medium">Status</th>
                   <th className="text-right px-4 py-2 font-medium">Amount</th>
@@ -161,6 +182,9 @@ export default function PaymentsList({ payments, properties }: Props) {
                     <td className="px-4 py-3">{p.leases?.units?.properties?.name || "—"}</td>
                     <td className="px-4 py-3 text-stone-600">
                       {format(parseDbDate(p.for_month), "MMM yyyy")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <TypeBadge type={paymentType(p)} />
                     </td>
                     <td className="px-4 py-3 text-stone-600 capitalize">
                       {(p.payment_method || "—").replace("_", " ")}
@@ -194,8 +218,14 @@ export default function PaymentsList({ payments, properties }: Props) {
                   </tr>
                 ))}
                 <tr className="bg-stone-50 border-t border-stone-200 font-medium">
-                  <td className="px-4 py-2 text-stone-600" colSpan={6}>
+                  <td className="px-4 py-2 text-stone-600" colSpan={7}>
                     Filtered total
+                    {depositTotal > 0 && (
+                      <span className="ml-2 font-normal text-xs text-stone-500">
+                        (rent ${rentTotal.toLocaleString()} · deposits $
+                        {depositTotal.toLocaleString()})
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right text-green-700">
                     ${totalAmount.toLocaleString()}
@@ -220,7 +250,8 @@ export default function PaymentsList({ payments, properties }: Props) {
                       {format(parseDbDate(p.payment_date), "MMM d, yyyy")} · for{" "}
                       {format(parseDbDate(p.for_month), "MMM yyyy")}
                     </div>
-                    <div className="mt-1">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <TypeBadge type={paymentType(p)} />
                       <ProcessorStatusBadge status={p.processor_status} />
                     </div>
                   </div>
@@ -250,13 +281,32 @@ export default function PaymentsList({ payments, properties }: Props) {
                 </div>
               </div>
             ))}
-            <div className="bg-stone-100 rounded-xl px-3 py-2 text-sm flex justify-between font-medium">
-              <span>Filtered total</span>
-              <span className="text-green-700">${totalAmount.toLocaleString()}</span>
+            <div className="bg-stone-100 rounded-xl px-3 py-2 text-sm font-medium">
+              <div className="flex justify-between">
+                <span>Filtered total</span>
+                <span className="text-green-700">${totalAmount.toLocaleString()}</span>
+              </div>
+              {depositTotal > 0 && (
+                <div className="text-xs font-normal text-stone-500 mt-0.5">
+                  rent ${rentTotal.toLocaleString()} · deposits ${depositTotal.toLocaleString()}
+                </div>
+              )}
             </div>
           </div>
         </>
       )}
     </>
+  );
+}
+
+function TypeBadge({ type }: { type: "rent" | "deposit" }) {
+  return (
+    <span
+      className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${
+        type === "deposit" ? "bg-indigo-50 text-indigo-800" : "bg-stone-100 text-stone-700"
+      }`}
+    >
+      {type === "deposit" ? "Deposit" : "Rent"}
+    </span>
   );
 }

@@ -113,6 +113,20 @@ supabase/schema.sql         # Database schema (run once)
 - Email reminders to tenants for late rent (Supabase Edge Function + Resend)
 - Tenant portal (separate auth role)
 
+## Payments: rent vs. security deposit
+
+Every payment is tagged as **Rent** or **Security deposit** on the record-payment
+form (`/payments/new`, or "Record deposit" from the command palette).
+
+- A deposit is money held for the tenant, not income, so deposit rows are left
+  out of rent collection status, the P&L, and the cashflow charts. They still
+  show in payment history, the CSV export, and the tenant's lifetime total.
+- Recording a deposit feeds the **Security deposit** ledger on the tenant page,
+  where deductions and refunds are tracked against it.
+- Run `supabase/v13-payment-type.sql` in the Supabase SQL Editor to add the
+  `payment_type` column. Payments recorded before the migration are backfilled
+  as rent.
+
 ## Notes
 
 - **Multi-unit buildings**: the schema supports them via the `units` table. The "Add property" form creates a single default unit; for a duplex you'd add a second unit manually (UI for this comes in Phase 2).

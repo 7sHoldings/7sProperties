@@ -14,6 +14,11 @@ import Button from "@/components/ui/Button";
 import PendingFilesInput from "@/components/PendingFilesInput";
 import { uploadPendingFiles } from "@/lib/uploadPending";
 
+const TYPES = [
+  { value: "rent", label: "Rent" },
+  { value: "deposit", label: "Security deposit" },
+];
+
 const METHODS = [
   { value: "bank_transfer", label: "Bank transfer" },
   { value: "check", label: "Check" },
@@ -43,11 +48,13 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<PaymentValues, any, PaymentInput>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
       lease_id: initial?.lease_id ?? params?.get("lease_id") ?? "",
+      payment_type: initial?.payment_type ?? (params?.get("type") === "deposit" ? "deposit" : "rent"),
       payment_date: initial?.payment_date ?? today,
       for_month: initial?.for_month ? String(initial.for_month).slice(0, 7) : thisMonth,
       amount: initial?.amount,
@@ -60,13 +67,21 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
   useEffect(() => {
     supabase
       .from("leases")
-      .select("id, monthly_rent, status, tenants(full_name), units(unit_label, properties(name))")
+      .select(
+        "id, monthly_rent, security_deposit, status, tenants(full_name), units(unit_label, properties(name))"
+      )
       .order("status", { ascending: true })
       .then(({ data }) => {
         setLeases(data || []);
         setLeasesLoaded(true);
       });
   }, []);
+
+  const paymentType = watch("payment_type");
+  const selectedLeaseId = watch("lease_id");
+  const isDeposit = paymentType === "deposit";
+  const selectedLease = leases.find((l: any) => l.id === selectedLeaseId);
+  const leaseDeposit = Number(selectedLease?.security_deposit) || 0;
 
   async function onSubmit(values: PaymentInput) {
     const {
@@ -79,6 +94,7 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
 
     const payload = {
       lease_id: values.lease_id,
+      payment_type: values.payment_type,
       payment_date: values.payment_date,
       for_month: `${values.for_month}-01`,
       amount: values.amount,
@@ -102,10 +118,11 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
         await uploadPendingFiles(supabase, user.id, created.id, "payment", pendingFiles);
       }
 
+      const noun = values.payment_type === "deposit" ? "Deposit" : "Payment";
       toast.success(
         pendingFiles.length > 0
-          ? `Payment recorded with ${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"}`
-          : "Payment recorded"
+          ? `${noun} recorded with ${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"}`
+          : `${noun} recorded`
       );
       router.push("/payments");
       router.refresh();
@@ -154,6 +171,19 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
       className="bg-white border border-stone-200 rounded-xl p-5 sm:p-6 space-y-4"
       noValidate
     >
+      <Select
+        label="Payment type"
+        required
+        options={TYPES}
+        hint={
+          isDeposit
+            ? "Security deposits are held for the tenant — they are tracked separately from rent and left out of income totals."
+            : "Regular monthly rent. Counts toward rent collection and income."
+        }
+        error={errors.payment_type?.message}
+        {...register("payment_type")}
+      />
+
       <Select label="Lease" required error={errors.lease_id?.message} {...register("lease_id")}>
         <option value="">Select tenant/property</option>
         {leases.map((l: any) => (
@@ -177,7 +207,11 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
           label="For month"
           type="month"
           required
-          hint="Which rent month this payment covers"
+          hint={
+            isDeposit
+              ? "Which month to file this deposit under"
+              : "Which rent month this payment covers"
+          }
           error={errors.for_month?.message}
           {...register("for_month")}
         />
@@ -189,6 +223,13 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
         step="0.01"
         inputMode="decimal"
         required
+        hint={
+          isDeposit && leaseDeposit > 0
+            ? `Deposit on this lease: $${leaseDeposit.toLocaleString()}`
+            : !isDeposit && selectedLease
+              ? `Monthly rent: $${Number(selectedLease.monthly_rent).toLocaleString()}`
+              : undefined
+        }
         error={errors.amount?.message}
         {...register("amount")}
       />
@@ -206,7 +247,7 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
         <PendingFilesInput
           files={pendingFiles}
           onChange={setPendingFiles}
-          label="Payment proof / check images"
+          label={isDeposit ? "Deposit proof / check images" : "Payment proof / check images"}
           hint="Attach screenshots, check photos, or ACH confirmations. Max 10 MB each."
         />
       )}
@@ -219,7 +260,7 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
           Cancel
         </Link>
         <Button type="submit" loading={isSubmitting} size="lg">
-          {mode === "create" ? "Save payment" : "Save changes"}
+          {mode === "create" ? (isDeposit ? "Save deposit" : "Save payment") : "Save changes"}
         </Button>
       </div>
     </form>
