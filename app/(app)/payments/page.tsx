@@ -4,36 +4,47 @@ import Link from "next/link";
 import { startOfMonth, format } from "date-fns";
 import PaymentsList from "@/components/lists/PaymentsList";
 import StatusBadge from "@/components/ui/StatusBadge";
+import {
+  PAYMENT_TYPE_MIGRATION,
+  rentOnly,
+  selectPaymentsWithStatus,
+} from "@/lib/payments";
 
 export default async function PaymentsPage() {
   const supabase = await createClient();
   const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
 
-  const [leasesRes, monthPaymentsRes, recentPaymentsRes, propsRes] = await Promise.all([
+  const [leasesRes, monthPayments, recentPaymentsRes, propsRes] = await Promise.all([
     supabase
       .from("leases")
       .select("*, tenants(full_name), units(unit_label, properties(id, name))")
       .eq("status", "active"),
-    // Rent collection status only counts rent — security deposits are held for
-    // the tenant, not income, so they never close out a rent month.
-    supabase
-      .from("payments")
-      .select("lease_id, amount")
-      .eq("for_month", monthStart)
-      .neq("payment_type", "deposit"),
-    supabase
-      .from("payments")
-      .select(
-        "id, amount, payment_date, for_month, payment_type, payment_method, reference_number, processor_status, leases(tenants(full_name), units(unit_label, properties(id, name)))"
-      )
-      .order("payment_date", { ascending: false }),
+    selectPaymentsWithStatus((withType) =>
+      supabase
+        .from("payments")
+        .select(withType ? "lease_id, amount, payment_type" : "lease_id, amount")
+        .eq("for_month", monthStart)
+    ),
+    selectPaymentsWithStatus((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "id, amount, payment_date, for_month, payment_type, payment_method, reference_number, processor_status, leases(tenants(full_name), units(unit_label, properties(id, name)))"
+            : "id, amount, payment_date, for_month, payment_method, reference_number, processor_status, leases(tenants(full_name), units(unit_label, properties(id, name)))"
+        )
+        .order("payment_date", { ascending: false })
+    ),
     supabase.from("properties").select("id, name").order("name"),
   ]);
 
   const leases = leasesRes.data || [];
-  const recentPayments = (recentPaymentsRes.data || []) as any[];
+  const recentPayments = recentPaymentsRes.rows as any[];
   const properties = (propsRes.data || []) as any[];
-  const paymentsByLease = (monthPaymentsRes.data || []).reduce((acc: any, p: any) => {
+  const needsMigration = monthPayments.missingColumn || recentPaymentsRes.missingColumn;
+  // Rent collection status counts rent only — security deposits are held for
+  // the tenant, not income, so they never close out a rent month.
+  const paymentsByLease = rentOnly(monthPayments.rows).reduce((acc: any, p: any) => {
     acc[p.lease_id] = (acc[p.lease_id] || 0) + Number(p.amount);
     return acc;
   }, {});
@@ -50,7 +61,8 @@ export default async function PaymentsPage() {
         <div>
           <h1 className="text-2xl font-medium">Rent collection</h1>
           <p className="text-sm text-stone-500">
-            {format(new Date(), "MMMM yyyy")} · rent only (deposits excluded)
+            {format(new Date(), "MMMM yyyy")}
+            {needsMigration ? "" : " · rent only (deposits excluded)"}
           </p>
         </div>
         <Link
@@ -60,6 +72,19 @@ export default async function PaymentsPage() {
           + Record payment
         </Link>
       </div>
+
+      {needsMigration && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm">
+          <div className="font-medium text-amber-900 mb-1">
+            Deposit tracking isn&apos;t switched on yet
+          </div>
+          <p className="text-amber-900/80">
+            Run <code className="font-mono">{PAYMENT_TYPE_MIGRATION}</code> in the Supabase SQL
+            Editor to separate deposits from rent. Until then every payment below is treated as
+            rent — your full history is here and nothing has been lost.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <KpiCard label="Expected" value={`$${expected.toLocaleString()}`} />

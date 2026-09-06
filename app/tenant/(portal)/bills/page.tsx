@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { rentOnly, selectPayments } from "@/lib/payments";
 import { format, startOfMonth, addMonths, isBefore } from "date-fns";
 import { Calendar, Check, AlertCircle, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -33,11 +34,16 @@ export default async function TenantBillsPage() {
         "id, start_date, end_date, monthly_rent, rent_due_day, status, autopay_enabled"
       )
       .order("start_date", { ascending: false }),
-    supabase
-      .from("payments")
-      .select("amount, payment_date, for_month, lease_id, processor_status")
-      // The rent timeline tracks rent only; deposits aren't rent owed.
-      .neq("payment_type", "deposit"),
+    // The rent timeline tracks rent only; deposits aren't rent owed.
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "amount, payment_date, for_month, payment_type, lease_id, processor_status"
+            : "amount, payment_date, for_month, lease_id, processor_status"
+        )
+    ),
     supabase
       .from("tenant_payment_methods")
       .select("*")
@@ -47,7 +53,7 @@ export default async function TenantBillsPage() {
   ]);
 
   const leases = (leasesRes.data || []) as any[];
-  const payments = (paymentsRes.data || []) as any[];
+  const payments = rentOnly(paymentsRes) as any[];
   const methods = (methodsRes.data || []) as any[];
   const hasActiveMethod = methods.some((m) => m.status === "active");
 

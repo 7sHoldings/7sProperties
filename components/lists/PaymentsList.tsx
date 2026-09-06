@@ -8,6 +8,7 @@ import ListControls from "@/components/ui/ListControls";
 import DeleteButton from "@/components/DeleteButton";
 import ProcessorStatusBadge from "@/components/ui/ProcessorStatusBadge";
 import { parseDbDate } from "@/lib/dates";
+import { paymentTypeOf } from "@/lib/payments";
 
 const SORTS = [
   { value: "date_desc", label: "Date (newest)" },
@@ -47,12 +48,6 @@ const MONTHS = [
   { value: "10", label: "Nov" },
   { value: "11", label: "Dec" },
 ];
-
-// Rows recorded before the deposit field existed have no payment_type; they
-// are all rent.
-function paymentType(p: any): "rent" | "deposit" {
-  return p.payment_type === "deposit" ? "deposit" : "rent";
-}
 
 type Props = {
   payments: any[];
@@ -96,7 +91,7 @@ export default function PaymentsList({ payments, properties }: Props) {
       list = list.filter((p) => p.payment_method === method);
     }
     if (type !== "all") {
-      list = list.filter((p) => paymentType(p) === type);
+      list = list.filter((p) => paymentTypeOf(p) === type);
     }
     if (year !== "all") {
       list = list.filter((p) => parseDbDate(p.payment_date).getFullYear().toString() === year);
@@ -129,7 +124,7 @@ export default function PaymentsList({ payments, properties }: Props) {
   const counted = filtered.filter((p) => p.processor_status !== "failed");
   const totalAmount = counted.reduce((s, p) => s + Number(p.amount), 0);
   const depositTotal = counted
-    .filter((p) => paymentType(p) === "deposit")
+    .filter((p) => paymentTypeOf(p) === "deposit")
     .reduce((s, p) => s + Number(p.amount), 0);
   const rentTotal = totalAmount - depositTotal;
 
@@ -184,7 +179,7 @@ export default function PaymentsList({ payments, properties }: Props) {
                       {format(parseDbDate(p.for_month), "MMM yyyy")}
                     </td>
                     <td className="px-4 py-3">
-                      <TypeBadge type={paymentType(p)} />
+                      <TypeBadge type={paymentTypeOf(p)} />
                     </td>
                     <td className="px-4 py-3 text-stone-600 capitalize">
                       {(p.payment_method || "—").replace("_", " ")}
@@ -251,7 +246,7 @@ export default function PaymentsList({ payments, properties }: Props) {
                       {format(parseDbDate(p.for_month), "MMM yyyy")}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <TypeBadge type={paymentType(p)} />
+                      <TypeBadge type={paymentTypeOf(p)} />
                       <ProcessorStatusBadge status={p.processor_status} />
                     </div>
                   </div>

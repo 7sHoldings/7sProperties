@@ -127,6 +127,11 @@ form (`/payments/new`, or "Record deposit" from the command palette).
   `payment_type` column. Payments recorded before the migration are backfilled
   as rent.
 
+Until that migration is run the app still shows your complete payment history —
+every payment is simply treated as rent, and the Payments page shows a banner
+pointing at the migration. Recording rent keeps working; recording a *deposit*
+asks you to run the migration first rather than saving it as rent.
+
 ## Notes
 
 - **Multi-unit buildings**: the schema supports them via the `units` table. The "Add property" form creates a single default unit; for a duplex you'd add a second unit manually (UI for this comes in Phase 2).

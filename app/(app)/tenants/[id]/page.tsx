@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isDepositPayment } from "@/lib/payments";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
@@ -44,7 +45,7 @@ export default async function TenantDetailPage({
   const payments = (paymentsRes.data || []) as any[];
   const totalPaid = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
   const depositsPaid = payments
-    .filter((p: any) => p.payment_type === "deposit")
+    .filter(isDepositPayment)
     .reduce((s: number, p: any) => s + Number(p.amount), 0);
 
   return (
@@ -157,7 +158,7 @@ export default async function TenantDetailPage({
                   <div>
                     <div className="flex items-center gap-1.5">
                       {format(parseDbDate(p.payment_date), "MMM d, yyyy")}
-                      {p.payment_type === "deposit" && (
+                      {isDepositPayment(p) && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800">
                           Deposit
                         </span>

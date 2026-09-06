@@ -1,4 +1,5 @@
 "use client";
+import { isDepositPayment, selectPayments } from "@/lib/payments";
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -35,14 +36,18 @@ export default function CsvExportButtons({ year }: { year: number }) {
 
   async function exportPayments() {
     setBusy("payments");
-    const { data } = await supabase
-      .from("payments")
-      .select(
-        "payment_date, for_month, payment_type, amount, payment_method, reference_number, leases(tenants(full_name), units(properties(name)))"
-      )
-      .gte("payment_date", yearStart)
-      .lte("payment_date", yearEnd)
-      .order("payment_date");
+    const data = await selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "payment_date, for_month, payment_type, amount, payment_method, reference_number, leases(tenants(full_name), units(properties(name)))"
+            : "payment_date, for_month, amount, payment_method, reference_number, leases(tenants(full_name), units(properties(name)))"
+        )
+        .gte("payment_date", yearStart)
+        .lte("payment_date", yearEnd)
+        .order("payment_date")
+    );
     setBusy(null);
     const rows: any[][] = [
       ["Date", "For month", "Type", "Tenant", "Property", "Method", "Reference", "Amount"],
@@ -51,7 +56,7 @@ export default function CsvExportButtons({ year }: { year: number }) {
       rows.push([
         p.payment_date,
         p.for_month,
-        p.payment_type === "deposit" ? "Deposit" : "Rent",
+        isDepositPayment(p) ? "Deposit" : "Rent",
         p.leases?.tenants?.full_name || "",
         p.leases?.units?.properties?.name || "",
         p.payment_method || "",

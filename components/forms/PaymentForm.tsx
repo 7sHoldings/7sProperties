@@ -13,6 +13,7 @@ import { Input, Select, Textarea } from "@/components/ui/FormField";
 import Button from "@/components/ui/Button";
 import PendingFilesInput from "@/components/PendingFilesInput";
 import { uploadPendingFiles } from "@/lib/uploadPending";
+import { PAYMENT_TYPE_MIGRATION, writePaymentRow } from "@/lib/payments";
 
 const TYPES = [
   { value: "rent", label: "Rent" },
@@ -94,7 +95,6 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
 
     const payload = {
       lease_id: values.lease_id,
-      payment_type: values.payment_type,
       payment_date: values.payment_date,
       for_month: `${values.for_month}-01`,
       amount: values.amount,
@@ -102,15 +102,28 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
       reference_number: values.reference_number || null,
       notes: values.notes || null,
     };
+    // payment_type only goes on the row when the column exists. A rent payment
+    // falls back to the pre-v13 shape; a deposit never silently saves as rent.
+    const withTypeField = (withType: boolean) =>
+      withType ? { ...payload, payment_type: values.payment_type } : payload;
+    const migrationHint = `Deposits need the ${PAYMENT_TYPE_MIGRATION} migration — run it in the Supabase SQL Editor, then save again.`;
 
     if (mode === "create") {
-      const { data: created, error } = await supabase
-        .from("payments")
-        .insert({ owner_id: user.id, ...payload })
-        .select()
-        .single();
+      const {
+        data: created,
+        error,
+        missingColumn,
+      } = await writePaymentRow(
+        (withType) =>
+          supabase
+            .from("payments")
+            .insert({ owner_id: user.id, ...withTypeField(withType) })
+            .select()
+            .single(),
+        values.payment_type
+      );
       if (error) {
-        toast.error(error.message);
+        toast.error(missingColumn ? migrationHint : error.message);
         return;
       }
 
@@ -129,9 +142,13 @@ export default function PaymentForm({ mode, paymentId, initial }: Props) {
       return;
     }
 
-    const { error } = await supabase.from("payments").update(payload).eq("id", paymentId!);
+    const { error, missingColumn } = await writePaymentRow(
+      (withType) =>
+        supabase.from("payments").update(withTypeField(withType)).eq("id", paymentId!).select().single(),
+      values.payment_type
+    );
     if (error) {
-      toast.error(error.message);
+      toast.error(missingColumn ? migrationHint : error.message);
       return;
     }
     toast.success("Payment updated");

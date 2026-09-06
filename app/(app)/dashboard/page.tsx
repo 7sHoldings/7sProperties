@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { rentOnly, selectPayments } from "@/lib/payments";
 import Link from "next/link";
 import {
   startOfMonth,
@@ -134,15 +135,18 @@ export default async function DashboardPage({
     // Selected-range rent payments — include lease/unit so we can filter by
     // property. Security deposits are held money, not income, so they are left
     // out of every P&L and cashflow figure below.
-    supabase
-      .from("payments")
-      .select(
-        "id, amount, payment_date, lease_id, leases(units(property_id), tenants(full_name))"
-      )
-      .neq("payment_type", "deposit")
-      .gte("for_month", rangeStartStr)
-      .lte("for_month", rangeEndStr)
-      .order("payment_date", { ascending: false }),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "id, amount, payment_date, lease_id, payment_type, leases(units(property_id), tenants(full_name))"
+            : "id, amount, payment_date, lease_id, leases(units(property_id), tenants(full_name))"
+        )
+        .gte("for_month", rangeStartStr)
+        .lte("for_month", rangeEndStr)
+        .order("payment_date", { ascending: false })
+    ),
     // Recent expenses (kept at 5 most recent across all time)
     supabase
       .from("expenses")
@@ -150,11 +154,16 @@ export default async function DashboardPage({
       .order("expense_date", { ascending: false })
       .limit(propertyId ? 50 : 5),
     // YTD aggregates
-    supabase
-      .from("payments")
-      .select("amount, for_month, leases(units(property_id))")
-      .neq("payment_type", "deposit")
-      .gte("for_month", yearStart),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "amount, for_month, payment_type, leases(units(property_id))"
+            : "amount, for_month, leases(units(property_id))"
+        )
+        .gte("for_month", yearStart)
+    ),
     supabase
       .from("expenses")
       .select("amount, category, property_id, expense_date")
@@ -164,11 +173,16 @@ export default async function DashboardPage({
       .select("amount, type, property_id")
       .gte("distribution_date", yearStart),
     // Cashflow chart (last 12 months) — filtered in JS by property if set
-    supabase
-      .from("payments")
-      .select("amount, for_month, leases(units(property_id))")
-      .neq("payment_type", "deposit")
-      .gte("for_month", cashflowSince),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "amount, for_month, payment_type, leases(units(property_id))"
+            : "amount, for_month, leases(units(property_id))"
+        )
+        .gte("for_month", cashflowSince)
+    ),
     supabase
       .from("expenses")
       .select("amount, property_id, expense_date")
@@ -196,12 +210,17 @@ export default async function DashboardPage({
       .gte("expense_date", rangeStartStr)
       .lte("expense_date", rangeEndStr),
     // Previous-period payments + expenses for the delta chip
-    supabase
-      .from("payments")
-      .select("amount, for_month, leases(units(property_id))")
-      .neq("payment_type", "deposit")
-      .gte("for_month", prevStartStr)
-      .lte("for_month", prevEndStr),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "amount, for_month, payment_type, leases(units(property_id))"
+            : "amount, for_month, leases(units(property_id))"
+        )
+        .gte("for_month", prevStartStr)
+        .lte("for_month", prevEndStr)
+    ),
     supabase
       .from("expenses")
       .select("amount, category, property_id, expense_date")
@@ -224,14 +243,14 @@ export default async function DashboardPage({
     (l) => !propertyId || l.units?.property_id === propertyId
   );
   const filteredUnits = units.filter((u) => !propertyId || u.property_id === propertyId);
-  const monthPayments = (paymentsRes.data || []).filter(paymentMatchesProperty);
+  const monthPayments = rentOnly(paymentsRes).filter(paymentMatchesProperty);
   const recentExpenses = ((expensesRes.data || []) as any[])
     .filter((e) => !propertyId || e.property_id === propertyId)
     .slice(0, 5);
   const monthExpensesRows = ((monthExpensesRes.data || []) as any[]).filter(matchesProperty);
-  const prevMonthPayments = (prevMonthPaymentsRes.data || []).filter(paymentMatchesProperty);
+  const prevMonthPayments = rentOnly(prevMonthPaymentsRes).filter(paymentMatchesProperty);
   const prevMonthExpenses = ((prevMonthExpensesRes.data || []) as any[]).filter(matchesProperty);
-  const ytdPayments = (ytdPaymentsRes.data || []).filter(paymentMatchesProperty);
+  const ytdPayments = rentOnly(ytdPaymentsRes).filter(paymentMatchesProperty);
   const ytdExpensesRows = ((ytdExpensesRes.data || []) as any[]).filter(matchesProperty);
   const ytdDist = ((ytdDistRes.data || []) as any[]).filter(matchesProperty);
   const openMaint = ((openMaintRes.data || []) as any[]).filter(matchesProperty);
@@ -357,7 +376,7 @@ export default async function DashboardPage({
     const m = format(startOfMonth(subMonths(new Date(), i)), "yyyy-MM");
     cashflowMap[m] = { income: 0, expenses: 0 };
   }
-  ((cashflowPaymentsRes.data || []) as any[])
+  (rentOnly(cashflowPaymentsRes) as any[])
     .filter(paymentMatchesProperty)
     .forEach((p) => {
       const k = String(p.for_month).slice(0, 7);

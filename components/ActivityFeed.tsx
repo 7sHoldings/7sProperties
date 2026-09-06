@@ -1,4 +1,5 @@
 import { format, formatDistanceToNow } from "date-fns";
+import { isDepositPayment, selectPayments } from "@/lib/payments";
 import Link from "next/link";
 import { DollarSign, Receipt, Wrench, Users, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -34,11 +35,17 @@ export default async function ActivityFeed() {
   const supabase = await createClient();
 
   const [paymentsRes, expensesRes, maintRes, tenantsRes, distRes] = await Promise.all([
-    supabase
-      .from("payments")
-      .select("id, amount, payment_date, payment_type, created_at, leases(tenants(full_name))")
-      .order("created_at", { ascending: false })
-      .limit(5),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "id, amount, payment_date, payment_type, created_at, leases(tenants(full_name))"
+            : "id, amount, payment_date, created_at, leases(tenants(full_name))"
+        )
+        .order("created_at", { ascending: false })
+        .limit(5)
+    ),
     supabase
       .from("expenses")
       .select("id, amount, description, created_at, properties(name)")
@@ -63,12 +70,12 @@ export default async function ActivityFeed() {
 
   const activities: Activity[] = [];
 
-  (paymentsRes.data || []).forEach((p: any) => {
+  paymentsRes.forEach((p: any) => {
     activities.push({
       id: `pay-${p.id}`,
       type: "payment",
       date: p.created_at,
-      title: `${p.payment_type === "deposit" ? "Deposit" : "Payment"} from ${
+      title: `${isDepositPayment(p) ? "Deposit" : "Payment"} from ${
         p.leases?.tenants?.full_name || "tenant"
       }`,
       subtitle: format(parseDbDate(p.payment_date), "MMM d, yyyy"),

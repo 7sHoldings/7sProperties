@@ -1,4 +1,5 @@
 "use client";
+import { rentOnly, selectPayments } from "@/lib/payments";
 
 import { useEffect, useMemo, useState } from "react";
 import { format, startOfMonth, addMonths, isBefore } from "date-fns";
@@ -51,20 +52,25 @@ export default function TenantLedger({ lease }: Props) {
   async function load() {
     setLoading(true);
     const [payRes, chargeRes] = await Promise.all([
-      supabase
-        .from("payments")
-        .select("id, amount, payment_date, for_month")
-        .eq("lease_id", lease.id)
-        // Deposits don't pay down rent owed — they live in the deposit ledger.
-        .neq("payment_type", "deposit")
-        .order("for_month", { ascending: true }),
+      // Deposits don't pay down rent owed — they live in the deposit ledger.
+      selectPayments((withType) =>
+        supabase
+          .from("payments")
+          .select(
+            withType
+              ? "id, amount, payment_date, for_month, payment_type"
+              : "id, amount, payment_date, for_month"
+          )
+          .eq("lease_id", lease.id)
+          .order("for_month", { ascending: true })
+      ),
       supabase
         .from("tenant_charges")
         .select("*")
         .eq("lease_id", lease.id)
         .order("charge_date", { ascending: false }),
     ]);
-    setPayments(payRes.data || []);
+    setPayments(rentOnly(payRes));
     setCharges(chargeRes.data || []);
     setLoading(false);
   }

@@ -101,7 +101,6 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     await db.from("payments").insert({
       owner_id: lease.owner_id,
       lease_id: lease.id,
-      payment_type: "rent",
       amount,
       payment_date: new Date().toISOString().slice(0, 10),
       for_month: forMonth.slice(0, 7) + "-01",

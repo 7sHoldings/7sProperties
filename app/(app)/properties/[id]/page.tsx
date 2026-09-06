@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isDepositPayment, rentOnly, selectPayments } from "@/lib/payments";
 import { notFound } from "next/navigation";
 import { format, subMonths, startOfMonth, startOfYear, differenceInCalendarDays, max as dMax, min as dMin } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
@@ -33,14 +34,18 @@ export default async function PropertyDetailPage({
       .select("*, tenants(id, full_name), units!inner(id, unit_label, property_id)")
       .eq("units.property_id", id)
       .order("start_date", { ascending: false }),
-    supabase
-      .from("payments")
-      .select(
-        "id, amount, payment_date, for_month, payment_type, leases!inner(units!inner(property_id), tenants(full_name))"
-      )
-      .eq("leases.units.property_id", id)
-      .order("payment_date", { ascending: false })
-      .limit(10),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "id, amount, payment_date, for_month, payment_type, leases!inner(units!inner(property_id), tenants(full_name))"
+            : "id, amount, payment_date, for_month, leases!inner(units!inner(property_id), tenants(full_name))"
+        )
+        .eq("leases.units.property_id", id)
+        .order("payment_date", { ascending: false })
+        .limit(10)
+    ),
     supabase
       .from("expenses")
       .select("id, amount, description, category, expense_date")
@@ -54,12 +59,17 @@ export default async function PropertyDetailPage({
       .order("reported_date", { ascending: false })
       .limit(10),
     // Cashflow counts rent only — deposits are held for the tenant, not income.
-    supabase
-      .from("payments")
-      .select("amount, for_month, leases!inner(units!inner(property_id))")
-      .eq("leases.units.property_id", id)
-      .neq("payment_type", "deposit")
-      .gte("for_month", cashflowSince),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "amount, for_month, payment_type, leases!inner(units!inner(property_id))"
+            : "amount, for_month, leases!inner(units!inner(property_id))"
+        )
+        .eq("leases.units.property_id", id)
+        .gte("for_month", cashflowSince)
+    ),
     supabase
       .from("expenses")
       .select("amount, expense_date")
@@ -73,10 +83,10 @@ export default async function PropertyDetailPage({
   ]);
 
   const leases = (leasesRes.data || []) as any[];
-  const payments = (paymentsRes.data || []) as any[];
+  const payments = paymentsRes as any[];
   const expenses = (expensesRes.data || []) as any[];
   const maintenance = (maintRes.data || []) as any[];
-  const cashflowPayments = (cashflowPaymentsRes.data || []) as any[];
+  const cashflowPayments = rentOnly(cashflowPaymentsRes) as any[];
   const cashflowExpenses = (cashflowExpensesRes.data || []) as any[];
   const cashflowDistributions = (distRes.data || []) as any[];
 
@@ -258,7 +268,7 @@ export default async function PropertyDetailPage({
                 <li key={p.id} className="flex justify-between py-2">
                   <span>
                     {p.leases?.tenants?.full_name || "—"}
-                    {p.payment_type === "deposit" && (
+                    {isDepositPayment(p) && (
                       <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800">
                         Deposit
                       </span>

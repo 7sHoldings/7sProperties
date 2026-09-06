@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { rentOnly, selectPayments } from "@/lib/payments";
 import { format, startOfMonth, endOfMonth, differenceInCalendarDays } from "date-fns";
 import { AlertTriangle, Building2, Calendar, DollarSign, Wrench } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -35,13 +36,18 @@ export default async function TenantDashboard() {
       .select("id, start_date, end_date, monthly_rent, status, rent_due_day, units(unit_label, properties(name, address, city, state, zip))")
       .eq("tenant_id", tenant.id)
       .order("start_date", { ascending: false }),
-    supabase
-      .from("payments")
-      .select("id, amount, payment_date, for_month, payment_method")
-      // Rent due for the month is unaffected by a deposit payment.
-      .neq("payment_type", "deposit")
-      .gte("for_month", monthStart)
-      .lte("for_month", monthEnd),
+    // Rent due for the month is unaffected by a deposit payment.
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "id, amount, payment_date, for_month, payment_type, payment_method"
+            : "id, amount, payment_date, for_month, payment_method"
+        )
+        .gte("for_month", monthStart)
+        .lte("for_month", monthEnd)
+    ),
     supabase
       .from("maintenance_requests")
       .select("id, title, status, priority")
@@ -52,7 +58,7 @@ export default async function TenantDashboard() {
   ]);
 
   const leases = (leasesRes.data || []) as any[];
-  const monthPayments = paymentsRes.data || [];
+  const monthPayments = rentOnly(paymentsRes);
   const openMaint = maintRes.data || [];
   const activeLease = leases.find((l) => l.status === "active");
 

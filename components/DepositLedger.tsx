@@ -1,4 +1,5 @@
 "use client";
+import { isDepositPayment, selectPayments } from "@/lib/payments";
 
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
@@ -50,15 +51,18 @@ export default function DepositLedger({ leaseId, initialDeposit }: Props) {
         .eq("lease_id", leaseId)
         .order("transaction_date", { ascending: false }),
       // Deposits collected through the payments form
-      supabase
-        .from("payments")
-        .select("amount")
-        .eq("lease_id", leaseId)
-        .eq("payment_type", "deposit"),
+      selectPayments((withType) =>
+        supabase
+          .from("payments")
+          .select(withType ? "amount, payment_type" : "amount")
+          .eq("lease_id", leaseId)
+      ),
     ]);
     setTxs(txRes.data || []);
     setReceived(
-      (payRes.data || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+      payRes
+        .filter(isDepositPayment)
+        .reduce((s: number, p: any) => s + Number(p.amount), 0)
     );
     setLoading(false);
   }

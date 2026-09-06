@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { rentOnly, selectPayments } from "@/lib/payments";
 import { createClient } from "@/lib/supabase/server";
 import {
   startOfYear,
@@ -90,12 +91,17 @@ export default async function ReportsPage({
     // Selected range
     // Rent income excludes security deposits — deposits are held for the
     // tenant, not earned revenue.
-    supabase
-      .from("payments")
-      .select("amount, leases(units(property_id))")
-      .neq("payment_type", "deposit")
-      .gte("for_month", rangeStartStr)
-      .lte("for_month", rangeEndStr),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "amount, payment_type, leases(units(property_id))"
+            : "amount, leases(units(property_id))"
+        )
+        .gte("for_month", rangeStartStr)
+        .lte("for_month", rangeEndStr)
+    ),
     supabase
       .from("expenses")
       .select("property_id, amount, category, vendor, expense_date")
@@ -117,12 +123,17 @@ export default async function ReportsPage({
       .select("vendor, amount")
       .gte("expense_date", calendarYearStart),
     // Previous period (same length) for the delta chip
-    supabase
-      .from("payments")
-      .select("amount, leases(units(property_id))")
-      .neq("payment_type", "deposit")
-      .gte("for_month", prevStartStr)
-      .lte("for_month", prevEndStr),
+    selectPayments((withType) =>
+      supabase
+        .from("payments")
+        .select(
+          withType
+            ? "amount, payment_type, leases(units(property_id))"
+            : "amount, leases(units(property_id))"
+        )
+        .gte("for_month", prevStartStr)
+        .lte("for_month", prevEndStr)
+    ),
     supabase
       .from("expenses")
       .select("property_id, amount, category")
@@ -137,11 +148,11 @@ export default async function ReportsPage({
     !propertyId || p.leases?.units?.property_id === propertyId;
   const rowMatchesProperty = (r: any) => !propertyId || r.property_id === propertyId;
 
-  const payments = ((paymentsRes.data || []) as any[]).filter(paymentMatchesProperty);
+  const payments = (rentOnly(paymentsRes) as any[]).filter(paymentMatchesProperty);
   const expenses = ((expensesRes.data || []) as any[]).filter(rowMatchesProperty);
   const distributions = ((distributionsRes.data || []) as any[]).filter(rowMatchesProperty);
   const mileage = mileageRes.data || [];
-  const prevPayments = ((prevPaymentsRes.data || []) as any[]).filter(paymentMatchesProperty);
+  const prevPayments = (rentOnly(prevPaymentsRes) as any[]).filter(paymentMatchesProperty);
   const prevExpenses = ((prevExpensesRes.data || []) as any[]).filter(rowMatchesProperty);
 
   // Same P&L formula as the dashboard, using the shared helper
