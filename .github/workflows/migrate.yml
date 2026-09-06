@@ -1,0 +1,52 @@
+name: Apply database migrations
+
+# Runs pending Supabase migrations whenever migration files land on main, so
+# schema changes ship with the code instead of waiting on someone to paste SQL
+# into the dashboard. Safe to re-run: applied migrations are recorded in
+# public.schema_migrations and skipped.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**.sql"
+      - "supabase/migrations.json"
+      - "scripts/migrate.mjs"
+      - ".github/workflows/migrate.yml"
+  workflow_dispatch:
+    inputs:
+      check_only:
+        description: "List pending migrations without applying them"
+        type: boolean
+        default: false
+
+# Never let two runs migrate the same database at once.
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          if [ "${{ inputs.check_only }}" = "true" ]; then
+            npm run migrate:check
+          else
+            npm run migrate
+          fi

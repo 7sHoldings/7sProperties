@@ -1,0 +1,80 @@
+{
+  "//": "Ordered list of SQL files for scripts/migrate.mjs. Order matters \u2014 a file may depend on an earlier one. Add every new migration to the END of this list. Files marked \"baseline\": true were applied by hand before migrations were automated; on a database that already has the app's tables they are recorded as applied without being re-run, and on a brand-new database they run in order to build the schema from scratch.",
+  "migrations": [
+    {
+      "file": "schema.sql",
+      "baseline": true
+    },
+    {
+      "file": "storage-policies.sql",
+      "baseline": true
+    },
+    {
+      "file": "tenant-portal.sql",
+      "baseline": true
+    },
+    {
+      "file": "distributions.sql",
+      "baseline": true
+    },
+    {
+      "file": "v3-features.sql",
+      "baseline": true
+    },
+    {
+      "file": "v3-rls-fix-and-documents.sql",
+      "baseline": true
+    },
+    {
+      "file": "v3-invite-rpcs.sql",
+      "baseline": true
+    },
+    {
+      "file": "unit-status-triggers.sql",
+      "baseline": true
+    },
+    {
+      "file": "v4-lease-auto-expire.sql",
+      "baseline": true
+    },
+    {
+      "file": "v4-public-listings.sql",
+      "baseline": true
+    },
+    {
+      "file": "v5-construction.sql",
+      "baseline": true
+    },
+    {
+      "file": "v6-tweaks.sql",
+      "baseline": true
+    },
+    {
+      "file": "v7-construction-expense-receipts.sql",
+      "baseline": true
+    },
+    {
+      "file": "v8-tenant-onboarding-docs.sql",
+      "baseline": true
+    },
+    {
+      "file": "v9-stripe-payments.sql",
+      "baseline": true
+    },
+    {
+      "file": "v10-construction-project-photos.sql",
+      "baseline": true
+    },
+    {
+      "file": "v11-flexible-expense-categories.sql",
+      "baseline": true
+    },
+    {
+      "file": "v12-general-expenses.sql",
+      "baseline": true
+    },
+    {
+      "file": "v13-payment-type.sql"
+    }
+  ]
+}

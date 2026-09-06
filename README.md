@@ -123,14 +123,52 @@ form (`/payments/new`, or "Record deposit" from the command palette).
   show in payment history, the CSV export, and the tenant's lifetime total.
 - Recording a deposit feeds the **Security deposit** ledger on the tenant page,
   where deductions and refunds are tracked against it.
-- Run `supabase/v13-payment-type.sql` in the Supabase SQL Editor to add the
-  `payment_type` column. Payments recorded before the migration are backfilled
-  as rent.
+- `supabase/v13-payment-type.sql` adds the `payment_type` column; it is applied
+  automatically (see **Database migrations** below). Payments recorded before it
+  are backfilled as rent.
 
 Until that migration is run the app still shows your complete payment history —
 every payment is simply treated as rent, and the Payments page shows a banner
 pointing at the migration. Recording rent keeps working; recording a *deposit*
 asks you to run the migration first rather than saving it as rent.
+
+## Database migrations (automated)
+
+Schema changes ship with the code — no pasting SQL into the dashboard.
+
+**One-time setup:** in Supabase go to **Project Settings → Database → Connection
+string → URI**, copy the **Session pooler** URI (the direct host is IPv6-only and
+GitHub's runners can't reach it), and add it to GitHub under
+**Settings → Secrets and variables → Actions** as `SUPABASE_DB_URL`.
+
+After that, every push to `main` that touches `supabase/**` runs
+`.github/workflows/migrate.yml`, which applies whatever is outstanding. You can
+also trigger it by hand from the **Actions** tab (with a "list only" option), or
+run it locally:
+
+```bash
+export SUPABASE_DB_URL="postgresql://..."
+npm run migrate:check   # list what would run, change nothing
+npm run migrate         # apply
+```
+
+**How it works**
+
+- `supabase/migrations.json` lists every SQL file in dependency order. Add each
+  new migration to the **end** of that list.
+- Applied files are recorded in `public.schema_migrations`, so runs are
+  idempotent — re-running applies nothing.
+- On first run against a database that already has your tables, the 18 files you
+  ran by hand are recorded as applied **without being re-executed**; only new
+  ones run. On an empty database the whole schema is built from scratch.
+- Each migration runs in its own transaction and rolls back completely if it
+  fails, so the schema is never left half-applied.
+- Migrations must be **additive**. The runner refuses to apply any file
+  containing `DROP TABLE`, `DROP COLUMN`, `TRUNCATE`, or `DELETE FROM` unless you
+  explicitly set `ALLOW_DESTRUCTIVE=1`.
+
+A brand-new Supabase project still needs the private `documents` storage bucket
+created by hand (Storage → New bucket) — that isn't a SQL migration.
 
 ## Notes
 
